@@ -47,27 +47,17 @@ def fetch_json(host, path):
         return json.loads(r.read().decode("utf-8"))
 
 def get_usdt_irt():
-    # ۱. اولویت اول: صرافی نوبیتکس (اردربوک مستقیم تتر به تومان)
+    # همان منبع سالم ساعت 05:31 صبح امروز (نوبیتکس)
     try:
-        d = fetch_json("apiv2.nobitex" + ".ir", "/v3/orderbook/USDTIRT")
-        p = float(d.get("lastTradePrice", 0)) / 10.0
-        if p > 10000:
-            print(f"USDT loaded from Nobitex v3: {p}")
-            return p
-    except Exception as e:
-        print(f"Nobitex v3 err: {e}")
-
-    # ۲. اولویت دوم: آمار لحظه‌ای نوبیتکس
-    try:
-        d = fetch_json("apiv2.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
+        d = fetch_json("api.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
         p = float(d["stats"]["usdt-rls"]["latest"]) / 10.0
         if p > 10000:
-            print(f"USDT loaded from Nobitex stats: {p}")
+            print(f"USDT loaded from Nobitex: {p}")
             return p
     except Exception as e:
-        print(f"Nobitex stats err: {e}")
+        print(f"Nobitex err: {e}")
 
-    # ۳. اولویت سوم: صرافی والکس
+    # پشتیبان دوم: صرافی والکس (همان نسخه صبح)
     try:
         d = fetch_json("api.wallex" + ".ir", "/v1/markets")
         p = float(d["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
@@ -78,7 +68,6 @@ def get_usdt_irt():
         print(f"Wallex err: {e}")
 
     return 0.0
-
 
 def get_cryptos():
     prices = {}
