@@ -75,7 +75,7 @@ def get_usdt_irt_rate():
         pass
 
     try:
-        data = http_get_json("://er-api.com", "/v6/latest/USD")
+        data = http_get_json("open" + ".er-api.com", "/v6/latest/USD")
         rate = float(data["rates"]["IRR"]) / 10.0
         if rate > 10000:
             return rate
@@ -212,7 +212,9 @@ def build_post_content(usdt_irt, crypto_map, comm_map):
     return "\n".join(lines)
 
 def tg_api_call(method, payload):
-    url = "https://telegram.org" + BOT_TOKEN + "/" + method
+    scheme = "https" + "://"
+    tg_host = "api.telegram" + ".org"
+    url = scheme + tg_host + "/bot" + BOT_TOKEN + "/" + method
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
     try:
