@@ -66,31 +66,47 @@ def format_irt_persian(value):
     return to_persian_digits(raw)
 
 def get_usdt_irt_rate():
+    # ۱. صرافی تبدیل (باز روی IP خارج - بازار USDT_IRT)
+    try:
+        data = http_get_json("api.tabdeal" + ".org", "/r/plots/currency_prices/")
+        for item in data:
+            if item.get("symbol") == "USDT":
+                rate = float(item.get("price_in_irt", 0))
+                if 50000 < rate < 320000:
+                    return rate
+    except Exception:
+        pass
+
+    # ۲. صرافی اوکی‌اکسچنج (باز روی IP خارج)
+    try:
+        data = http_get_json("api.ok-ex" + ".io", "/oapi/v1/market/tickers")
+        for item in data.get("tickers", []):
+            if item.get("symbol") == "USDT-IRT":
+                rate = float(item.get("last", 0))
+                if 50000 < rate < 320000:
+                    return rate
+    except Exception:
+        pass
+
+    # ۳. صرافی نوبیتکس (در صورت باز بودن)
     try:
         data = http_get_json("api.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
         rate = float(data["stats"]["usdt-rls"]["latest"]) / 10.0
-        if 50000 < rate < 350000:
+        if 50000 < rate < 320000:
             return rate
     except Exception:
         pass
 
+    # ۴. صرافی والکس (در صورت باز بودن)
     try:
         data = http_get_json("api.wallex" + ".ir", "/v1/markets")
         rate = float(data["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
-        if 50000 < rate < 350000:
+        if 50000 < rate < 320000:
             return rate
     except Exception:
         pass
 
-    try:
-        data = http_get_json("api.tetherland" + ".com", "/api/v5/currencies")
-        rate = float(data["data"]["currencies"]["USDT"]["price"])
-        if 50000 < rate < 350000:
-            return rate
-    except Exception:
-        pass
-
-    return 270000.0
+    return 0.0
 
 def get_all_crypto_prices():
     prices = {}
