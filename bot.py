@@ -47,45 +47,40 @@ def fetch_json(host, path):
         return json.loads(r.read().decode("utf-8"))
 
 def get_usdt_irt():
-    # ۱. اردربوک رسمی نوبیتکس (ریال تقسیم بر ۱۰)
+    # ۱. صرافی تبدیل (باز روی IP خارج)
+    try:
+        d = fetch_json("api.tabdeal" + ".org", "/r/plots/currency_prices/")
+        for item in d:
+            if item.get("symbol") == "USDT":
+                p = float(item.get("price_in_irt", 0))
+                if p > 10000:
+                    print(f"USDT loaded from Tabdeal: {p}")
+                    return p
+    except Exception as e:
+        print(f"Tabdeal err: {e}")
+
+    # ۲. صرافی تترلند (باز روی IP خارج)
+    try:
+        d = fetch_json("api.tetherland" + ".com", "/api/v5/currencies")
+        p = float(d["data"]["currencies"]["USDT"]["price"])
+        if p > 10000:
+            print(f"USDT loaded from Tetherland: {p}")
+            return p
+    except Exception as e:
+        print(f"Tetherland err: {e}")
+
+    # ۳. صرافی نوبیتکس (در صورت باز بودن)
     try:
         d = fetch_json("apiv2.nobitex" + ".ir", "/v3/orderbook/USDTIRT")
         p = float(d.get("lastTradePrice", 0)) / 10.0
         if p > 10000:
+            print(f"USDT loaded from Nobitex: {p}")
             return p
-    except Exception:
-        pass
-
-    # ۲. آمار بازار نوبیتکس (ریال تقسیم بر ۱۰)
-    try:
-        d = fetch_json("apiv2.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
-        p = float(d["stats"]["usdt-rls"]["latest"]) / 10.0
-        if p > 10000:
-            return p
-    except Exception:
-        pass
-
-    # ۳. صرافی والکس (تومان)
-    try:
-        d = fetch_json("api.wallex" + ".ir", "/v1/markets")
-        p = float(d["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
-        if p > 10000:
-            return p
-    except Exception:
-        pass
-
-    # ۴. صرافی اوکی‌اکسچنج (تومان)
-    try:
-        d = fetch_json("api.ok-ex" + ".io", "/oapi/v1/market/tickers")
-        for t in d.get("tickers", []):
-            if t.get("symbol") == "USDT-IRT":
-                p = float(t.get("last", 0))
-                if p > 10000:
-                    return p
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Nobitex err: {e}")
 
     return 0.0
+
 
 def get_cryptos():
     prices = {}
