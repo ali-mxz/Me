@@ -38,42 +38,52 @@ def to_persian(s):
     return s.translate(str.maketrans("0123456789", "۱۲۳۴۵۶۷۸۹۰"))
 
 def fetch_json(host, path):
-    req = urllib.request.Request("https" + "://" + host + path, headers={"User-Agent": "Mozilla/5.0"})
+    scheme = "https" + "://"
+    req = urllib.request.Request(
+        scheme + host + path,
+        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    )
     with urllib.request.urlopen(req, timeout=15) as r:
         return json.loads(r.read().decode("utf-8"))
 
 def get_usdt_irt():
-    # ۱. اردربوک نسخه ۳ نوبیتکس (باز روی IP خارج - عدد به ریال است تقسیم بر ۱۰)
+    # ۱. اردربوک رسمی نوبیتکس (ریال تقسیم بر ۱۰)
     try:
         d = fetch_json("apiv2.nobitex" + ".ir", "/v3/orderbook/USDTIRT")
         p = float(d.get("lastTradePrice", 0)) / 10.0
         if p > 10000:
-            print(f"USDT from Nobitex v3: {p}")
             return p
-    except Exception as e:
-        print(f"Nobitex v3 err: {e}")
+    except Exception:
+        pass
 
-    # ۲. بازارهای عمومی نوبیتکس
+    # ۲. آمار بازار نوبیتکس (ریال تقسیم بر ۱۰)
     try:
         d = fetch_json("apiv2.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
         p = float(d["stats"]["usdt-rls"]["latest"]) / 10.0
         if p > 10000:
-            print(f"USDT from Nobitex stats: {p}")
             return p
-    except Exception as e:
-        print(f"Nobitex stats err: {e}")
+    except Exception:
+        pass
 
-    # ۳. صرافی اوکی‌اکسچنج (باز روی IP خارج)
+    # ۳. صرافی والکس (تومان)
+    try:
+        d = fetch_json("api.wallex" + ".ir", "/v1/markets")
+        p = float(d["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
+        if p > 10000:
+            return p
+    except Exception:
+        pass
+
+    # ۴. صرافی اوکی‌اکسچنج (تومان)
     try:
         d = fetch_json("api.ok-ex" + ".io", "/oapi/v1/market/tickers")
         for t in d.get("tickers", []):
             if t.get("symbol") == "USDT-IRT":
                 p = float(t.get("last", 0))
                 if p > 10000:
-                    print(f"USDT from OkEx: {p}")
                     return p
-    except Exception as e:
-        print(f"OkEx err: {e}")
+    except Exception:
+        pass
 
     return 0.0
 
@@ -88,15 +98,24 @@ def get_cryptos():
                     prices[pair[:-5]] = {"price": last, "chg": float(item.get("change_percentage", 0))}
     except Exception:
         pass
-    for sym in ["TON", "XMR"]:
+
+    # تضمینی برای XMR و TON از صرافی Kraken
+    for sym, kpair in {"XMR": "XXMRZUSD", "TON": "TONUSD"}.items():
         if sym not in prices:
             try:
-                d = fetch_json("api.coinbase" + ".com", "/v2/prices/" + sym + "-USD/spot")
-                amt = float(d["data"]["amount"])
-                if amt > 0:
-                    prices[sym] = {"price": amt, "chg": 0.0}
+                d = fetch_json("api.kraken" + ".com", "/0/public/Ticker?pair=" + kpair)
+                for _, info in d.get("result", {}).items():
+                    c_list = info.get("c", [])
+                    o_val = float(info.get("o", 0))
+                    for c_str in c_list:
+                        last = float(c_str)
+                        if last > 0:
+                            chg = ((last - o_val) / o_val * 100.0) if o_val > 0 else 0.0
+                            prices[sym] = {"price": last, "chg": chg}
+                        break
             except Exception:
                 pass
+
     return prices
 
 def get_commodities():
@@ -107,6 +126,7 @@ def get_commodities():
             comm["SLVON"] = {"price": float(xag["price"]), "chg": 0.0}
     except Exception:
         pass
+
     for sym, tk in {"COPXON": "HG=F", "USOON": "CL=F"}.items():
         try:
             d = fetch_json("query2.finance.yahoo" + ".com", "/v8/finance/chart/" + tk + "?interval=1d&range=2d")
@@ -122,10 +142,14 @@ def get_commodities():
     return comm
 
 def fmt_usd(v):
-    if v <= 0: return "—"
-    if v >= 1000: return f"${v:,.0f}"
-    if v >= 10: return f"${v:,.2f}"
-    if v >= 1: return f"${v:,.3f}"
+    if v <= 0:
+        return "—"
+    if v >= 1000:
+        return f"${v:,.0f}"
+    if v >= 10:
+        return f"${v:,.2f}"
+    if v >= 1:
+        return f"${v:,.3f}"
     return f"${v:,.5f}"
 
 def pad_gaps(sym, usd):
@@ -146,7 +170,8 @@ def build_post(usdt_irt, cryptos, comms):
     tracker = []
     for it in WATCHLIST:
         sym, tp = it["symbol"], it["type"]
-        link = f'<a href="https://tradingview.com{it["tv"]}">{sym}</a>'
+        tv_url = "https" + "://www.tradingview" + ".com/chart/?symbol=" + it["tv"]
+        link = f'<a href="{tv_url}">{sym}</a>'
         usd, chg = 0.0, None
         if tp == "usdt":
             usd = 1.0
@@ -167,8 +192,8 @@ def build_post(usdt_irt, cryptos, comms):
         else:
             dot, pct = "⚪️", "0.0%"
 
-        # تومن دقیقاً در سمت چپِ عدد قرار می‌گیرد
-        lines.append(f"▫️ {link}{g1}{usd_str}{g2}{dot} {pct}\u2002|\u2002\u200eتومن {irt_fa}")
+        # تثبیت قطعی «تومن» در سمت چپِ عدد فارسی
+        lines.append(f"▫️ {link}{g1}{usd_str}{g2}{dot} {pct}\u2002|\u2002\u200eتومن \u200e{irt_fa}")
 
     if len(tracker) >= 2:
         hi = max(tracker, key=lambda x: x["chg"])
@@ -178,15 +203,24 @@ def build_post(usdt_irt, cryptos, comms):
         lines.append(f"▼ Top Loser: {lo['sym']} ({lo['chg']:+.2f}%)</blockquote>")
     return "\n".join(lines)
 
-def send_tg(text):
-    url = "https" + "://api.telegram" + ".org/bot" + BOT_TOKEN + "/sendMessage"
-    req = urllib.request.Request(url, data=json.dumps({
-        "chat_id": CHANNEL_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True
-    }).encode("utf-8"), headers={"Content-Type": "application/json"})
+def tg_call(method, payload):
+    url = "https" + "://api.telegram" + ".org/bot" + BOT_TOKEN + "/" + method
+    req = urllib.request.Request(
+        url, data=json.dumps(payload).encode("utf-8"), headers={"Content-Type": "application/json"}
+    )
     with urllib.request.urlopen(req, timeout=15) as r:
-        print(r.read().decode("utf-8"))
+        return json.loads(r.read().decode("utf-8"))
 
 if __name__ == "__main__":
     if BOT_TOKEN and CHANNEL_ID:
         u = get_usdt_irt()
-        send_tg(build_post(u, get_cryptos(), get_commodities()))
+        text = build_post(u, get_cryptos(), get_commodities())
+        tg_call("sendMessage", {
+            "chat_id": CHANNEL_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True
+        })
+        if PINNED_MSG_ID and PINNED_MSG_ID.isdigit():
+            tg_call("editMessageText", {
+                "chat_id": CHANNEL_ID, "message_id": int(PINNED_MSG_ID),
+                "text": text + "\n📌 Live Board • Auto-updated",
+                "parse_mode": "HTML", "disable_web_page_preview": True
+            })
