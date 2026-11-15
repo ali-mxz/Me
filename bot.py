@@ -9,31 +9,33 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 PINNED_MSG_ID = os.environ.get("PINNED_MSG_ID", "").strip()
 
 WATCHLIST = [
-    {"symbol": "USDT", "type": "usdt"},
-    {"symbol": "BTC", "type": "crypto", "lookup": "BTC"},
-    {"symbol": "ETH", "type": "crypto", "lookup": "ETH"},
-    {"symbol": "XRP", "type": "crypto", "lookup": "XRP"},
-    {"symbol": "SOL", "type": "crypto", "lookup": "SOL"},
-    {"symbol": "PAXG", "type": "crypto", "lookup": "PAXG"},
-    {"symbol": "SLVON", "type": "commodity"},
-    {"symbol": "COPXON", "type": "commodity"},
-    {"symbol": "USOON", "type": "commodity"},
-    {"symbol": "GRAM", "type": "crypto", "lookup": "TON"},
-    {"symbol": "DOGE", "type": "crypto", "lookup": "DOGE"},
-    {"symbol": "LINK", "type": "crypto", "lookup": "LINK"},
-    {"symbol": "XMR", "type": "crypto", "lookup": "XMR"},
-    {"symbol": "BNB", "type": "crypto", "lookup": "BNB"},
-    {"symbol": "TRX", "type": "crypto", "lookup": "TRX"},
-    {"symbol": "ADA", "type": "crypto", "lookup": "ADA"},
-    {"symbol": "ZEC", "type": "crypto", "lookup": "ZEC"},
-    {"symbol": "SUI", "type": "crypto", "lookup": "SUI"},
-    {"symbol": "LTC", "type": "crypto", "lookup": "LTC"},
-    {"symbol": "NOT", "type": "crypto", "lookup": "NOT"},
+    {"symbol": "USDT", "type": "usdt", "tv": "CRYPTO:USDTUSD"},
+    {"symbol": "BTC", "type": "crypto", "lookup": "BTC", "tv": "BINANCE:BTCUSDT"},
+    {"symbol": "ETH", "type": "crypto", "lookup": "ETH", "tv": "BINANCE:ETHUSDT"},
+    {"symbol": "XRP", "type": "crypto", "lookup": "XRP", "tv": "BINANCE:XRPUSDT"},
+    {"symbol": "SOL", "type": "crypto", "lookup": "SOL", "tv": "BINANCE:SOLUSDT"},
+    {"symbol": "PAXG", "type": "crypto", "lookup": "PAXG", "tv": "BINANCE:PAXGUSDT"},
+    {"symbol": "SLVON", "type": "commodity", "tv": "TVC:SILVER"},
+    {"symbol": "COPXON", "type": "commodity", "tv": "COMEX:HG1!"},
+    {"symbol": "USOON", "type": "commodity", "tv": "TVC:USOIL"},
+    {"symbol": "GRAM", "type": "crypto", "lookup": "TON", "tv": "OKX:TONUSDT"},
+    {"symbol": "DOGE", "type": "crypto", "lookup": "DOGE", "tv": "BINANCE:DOGEUSDT"},
+    {"symbol": "LINK", "type": "crypto", "lookup": "LINK", "tv": "BINANCE:LINKUSDT"},
+    {"symbol": "XMR", "type": "crypto", "lookup": "XMR", "tv": "KRAKEN:XMRUSD"},
+    {"symbol": "BNB", "type": "crypto", "lookup": "BNB", "tv": "BINANCE:BNBUSDT"},
+    {"symbol": "TRX", "type": "crypto", "lookup": "TRX", "tv": "BINANCE:TRXUSDT"},
+    {"symbol": "ADA", "type": "crypto", "lookup": "ADA", "tv": "BINANCE:ADAUSDT"},
+    {"symbol": "ZEC", "type": "crypto", "lookup": "ZEC", "tv": "BINANCE:ZECUSDT"},
+    {"symbol": "SUI", "type": "crypto", "lookup": "SUI", "tv": "BINANCE:SUIUSDT"},
+    {"symbol": "LTC", "type": "crypto", "lookup": "LTC", "tv": "BINANCE:LTCUSDT"},
+    {"symbol": "NOT", "type": "crypto", "lookup": "NOT", "tv": "BINANCE:NOTUSDT"},
 ]
 
 def to_arabic_digits(text):
-    mapping = str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩")
-    return text.translate(mapping)
+    return text.translate(str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩"))
+
+def to_persian_digits(text):
+    return text.translate(str.maketrans("0123456789", "۱۲۳۴۵۶۷۸۹۰"))
 
 def http_get_json(host, path):
     scheme = "https" + "://"
@@ -57,10 +59,11 @@ def format_usd(value):
     else:
         return f"${value:,.5f}"
 
-def format_irt(value):
+def format_irt_persian(value):
     if value is None or value <= 0:
         return "—"
-    return f"{value:,.0f}" if value >= 10 else f"{value:,.2f}"
+    raw = f"{value:,.0f}" if value >= 10 else f"{value:,.2f}"
+    return to_persian_digits(raw)
 
 def get_usdt_irt_rate():
     try:
@@ -103,19 +106,27 @@ def get_all_crypto_prices():
     except Exception:
         pass
 
-    # دریافت تضمینی XMR و TON از صرافی Kraken
-    kraken_pairs = {"XMR": "XXMRZUSD", "TON": "TONUSD"}
-    for sym, k_pair in kraken_pairs.items():
-        if sym not in prices:
-            try:
-                data = http_get_json("api.kraken" + ".com", "/0/public/Ticker?pair=" + k_pair)
-                res = data.get("result", {})
-                for _, info in res.items():
-                    last = float(info["c"])
-                    open_p = float(info["o"])
-                    chg = ((last - open_p) / open_p * 100.0) if open_p > 0 else 0.0
+    try:
+        data = http_get_json("api.kucoin" + ".com", "/api/v1/market/allTickers")
+        for item in data.get("data", {}).get("ticker", []):
+            pair = item.get("symbol", "")
+            if pair.endswith("-USDT"):
+                sym = pair.replace("-USDT", "")
+                if sym not in prices:
+                    last = float(item.get("last", 0))
+                    chg = float(item.get("changeRate", 0)) * 100.0
                     if last > 0:
                         prices[sym] = {"price": last, "change": chg}
+    except Exception:
+        pass
+
+    for sym in ["TON", "XMR"]:
+        if sym not in prices:
+            try:
+                data = http_get_json("api.coinbase" + ".com", "/v2/prices/" + sym + "-USD/spot")
+                amt = float(data.get("data", {}).get("amount", 0))
+                if amt > 0:
+                    prices[sym] = {"price": amt, "change": 0.0}
             except Exception:
                 pass
 
@@ -123,7 +134,6 @@ def get_all_crypto_prices():
 
 def get_commodities():
     comm = {}
-    # دریافت قیمت نقره (XAG)
     try:
         xag = http_get_json("api.gold-api" + ".com", "/price/XAG")
         if xag and xag.get("price"):
@@ -131,7 +141,6 @@ def get_commodities():
     except Exception:
         pass
 
-    # دریافت مس و نفت خام از CNBC / Yahoo باز
     yahoo_tickers = {"COPXON": "HG=F", "USOON": "CL=F"}
     if "SLVON" not in comm:
         yahoo_tickers["SLVON"] = "SI=F"
@@ -152,28 +161,60 @@ def get_commodities():
 
     return comm
 
+def pad_for_proportional_font(sym_text, usd_text):
+    """ترفند تایپوگرافی برای هم‌تراز کردن ستون دایره‌ها بدون استفاده از فونت مونواسپیس"""
+    # محاسبه وزن عرضی کاراکترها در فونت استاندارد تلگرام
+    narrow_chars = set("I1.,$:")
+    wide_chars = set("WMG@")
+    
+    def calc_width(s):
+        w = 0.0
+        for ch in s:
+            if ch in narrow_chars:
+                w += 0.55
+            elif ch in wide_chars:
+                w += 1.25
+            else:
+                w += 1.0
+        return w
+
+    sym_w = calc_width(sym_text)
+    usd_w = calc_width(usd_text)
+    
+    # تراز کردن فاصله بین نماد و دلار (هدف: عرض 7 واحد)
+    gap1_units = max(1, round((7.2 - sym_w) * 2))
+    gap1 = "\u2002" + ("\u2006" * gap1_units)
+    
+    # تراز کردن فاصله بین دلار و دایره وضعیت (هدف: عرض 10.5 واحد)
+    gap2_units = max(1, round((10.8 - usd_w) * 2))
+    gap2 = "\u2002" + ("\u2006" * gap2_units)
+    
+    return gap1, gap2
+
 def build_post_content(usdt_irt, crypto_map, comm_map):
     tehran_tz = timezone(timedelta(hours=3, minutes=30))
     now_tehran = datetime.now(tehran_tz)
 
     gregorian_str = now_tehran.strftime("%Y-%m-%d")
-    day_abbr = now_tehran.strftime("%a")  # Sun, Mon, Tue...
+    day_abbr = now_tehran.strftime("%a")
     time_str = now_tehran.strftime("%H:%M")
     jalali_now = jdatetime.datetime.fromgregorian(datetime=now_tehran)
     jalali_arabic = to_arabic_digits(jalali_now.strftime("%Y/%m/%d"))
 
     lines = [
         "🦎 <b>Watch Lizard</b>  •  Market Pulse",
-        f"🗓 <code>{gregorian_str}</code>  |  {day_abbr} ⏰ <code>{time_str}</code>  |  <code>{jalali_arabic}</code> 🌻",
+        f"🗓 {gregorian_str}  |  {day_abbr} ⏰ {time_str}  |  {jalali_arabic} 🌻",
         "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
     ]
 
-    table_rows = []
     changes_tracker = []
 
     for item in WATCHLIST:
         sym = item["symbol"]
         item_type = item["type"]
+        tv_url = "https" + "://www.tradingview" + ".com/chart/?symbol=" + item["tv"]
+        sym_link = f'<a href="{tv_url}">{sym}</a>'
+
         usd_price = 0.0
         change_24h = None
 
@@ -196,34 +237,29 @@ def build_post_content(usdt_irt, crypto_map, comm_map):
         if change_24h is not None:
             dot = "🟢" if change_24h >= 0 else "🔴"
             sign = "+" if change_24h > 0 else ""
-            pct_str = f"{sign}{change_24h:.1f}%"
+            pct_text = f"{sign}{change_24h:.1f}%"
             changes_tracker.append({"sym": sym, "chg": float(change_24h)})
         else:
             dot = "⚪️"
-            pct_str = "0.0%"
+            pct_text = "0.0%"
 
-        irt_str = format_irt(irt_price)
-
-        if item_type == "usdt":
-            # چیدمان تراز شده: نماد چپ، قیمت تومانی راست
-            row = f"▫️ {sym:<6} {'—':<10} {irt_str:>13} IRT ⚪️"
-        else:
-            usd_str = format_usd(usd_price)
-            # ستون صاف: نماد | قیمت دلاری | قیمت تومانی (راست‌چین) | درصد | دایره در منتهی‌الیه راست
-            row = f"▫️ {sym:<6} {usd_str:<10} {irt_str:>13} {pct_str:>6} {dot}"
-
-        table_rows.append(row)
-
-    # قرار دادن جدول داخل pre برای صاف ماندن کامل ستون دایره‌ها و قیمت تومانی در سمت راست
-    lines.append("<pre>" + "\n".join(table_rows) + "</pre>")
+        irt_fa = format_irt_persian(irt_price)
+        usd_str = "$1.00" if item_type == "usdt" else format_usd(usd_price)
+        
+        gap1, gap2 = pad_for_proportional_font(sym, usd_str)
+        
+        # چیدمان: نماد | دلار | دایره حائل | درصد + قیمت تومانی با تثبیت جهت چپ‌به‌راست (\u200e)
+        lines.append(
+            f"▫️ {sym_link}{gap1}{usd_str}{gap2}{dot}\u2002{irt_fa}\u200e تومن  ({pct_text})"
+        )
 
     if len(changes_tracker) >= 2:
         top_gainer = max(changes_tracker, key=lambda x: x["chg"])
         top_loser = min(changes_tracker, key=lambda x: x["chg"])
 
-        lines.append("<blockquote expandable>📊 <b>24h Watchlist Summary</b>")
-        lines.append(f"▲ Top Gainer: {top_gainer['sym']} (<code>{top_gainer['chg']:+.2f}%</code>)")
-        lines.append(f"▼ Top Loser: {top_loser['sym']} (<code>{top_loser['chg']:+.2f}%</code>)</blockquote>")
+        lines.append("\n<blockquote expandable>📊 <b>24h Watchlist Summary</b>")
+        lines.append(f"▲ Top Gainer: {top_gainer['sym']} ({top_gainer['chg']:+.2f}%)")
+        lines.append(f"▼ Top Loser: {top_loser['sym']} ({top_loser['chg']:+.2f}%)</blockquote>")
 
     return "\n".join(lines)
 
@@ -241,19 +277,11 @@ def tg_api_call(method, payload):
         return None
 
 def send_or_update_telegram(text):
-    tv_chart_url = "https" + "://www.tradingview" + ".com/chart/"
-    reply_markup = {
-        "inline_keyboard": [
-            [{"text": "📈 Open Live Charts", "url": tv_chart_url}]
-        ]
-    }
-
     res = tg_api_call("sendMessage", {
         "chat_id": CHANNEL_ID,
         "text": text,
         "parse_mode": "HTML",
-        "disable_web_page_preview": True,
-        "reply_markup": reply_markup
+        "disable_web_page_preview": True
     })
 
     if res and res.get("ok"):
@@ -263,10 +291,9 @@ def send_or_update_telegram(text):
         tg_api_call("editMessageText", {
             "chat_id": CHANNEL_ID,
             "message_id": int(PINNED_MSG_ID),
-            "text": text + "\n📌 Live Board • Auto-updated every 5m",
+            "text": text + "\n📌 Live Board • Auto-updated",
             "parse_mode": "HTML",
-            "disable_web_page_preview": True,
-            "reply_markup": reply_markup
+            "disable_web_page_preview": True
         })
 
 if __name__ == "__main__":
