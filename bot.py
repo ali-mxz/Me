@@ -1,10 +1,3 @@
-نگران نباشید؛ این بار ۱۰۰٪ مشکل از فرمت یک خط کد پایتون در بخش سورت کردن (مرتب‌سازی) بود که در سیستم کپی‌پیست حذف شده بود (key=lambda x: x[1] تبدیل به key=lambda x: x شده بود و همچنین top_gainer[0] تبدیل به top_gainer شده بود که در پایتون خطای TypeError می‌دهد).
-دقیقاً به همین دلیل وقتی از منوی Actions وارد آخرین اجرا می‌شوید، احتمالاً آیکون قرمز ❌ خورده است!
-
-کد کاملاً اصلاح‌شده و بدون حتی یک کاراکتر خطا (bot.py)
-
-کافی است فایل bot.py را در گیت‌هاب باز کنید (<> Code ➔ bot.py ➔ آیکون مداد ✏️)، کد قبلی را کامل پاک کنید و این کد تمیز را پیست و Commit کنید:
-python
 import os
 import requests
 import jdatetime
@@ -153,9 +146,8 @@ def build_post_content(usdt_irt, cg_data):
             )
 
     if len(changes_tracker) >= 2:
-        sorted_list = sorted(changes_tracker, key=lambda item: item["chg"], reverse=True)
-        top_gainer = sorted_list[0]
-        top_loser = sorted_list[-1]
+        top_gainer = max(changes_tracker, key=lambda item: item["chg"])
+        top_loser = min(changes_tracker, key=lambda item: item["chg"])
 
         lines.append("\n<blockquote expandable>📈 <b>خلاصه نوسانات ۲۴ ساعته واچ‌لیست:</b>")
         lines.append(f"🚀 بیشترین رشد: <b>{top_gainer['sym']}</b> ({top_gainer['chg']:+.2f}%)")
@@ -204,6 +196,3 @@ if __name__ == "__main__":
         send_or_update_telegram(post_text)
     else:
         print("ERROR: Failed to fetch market data.")
-Use code with caution.
-(در این نسخه برای جلوگیری از هرگونه مشکل فرمت‌بندی، از دیکشنری با کلیدهای صریح item["sym"] و item["chg"] استفاده کردم تا به هیچ وجه خطای اندیس رخ ندهد).
-پس از جایگزینی این کد و زدن Run workflow در تب Actions، نتیجه را ببینید و اگر باز هم پیامی نیامد، متن داخل بخش > Run Bot را کپی کنید تا درجا بررسی کنیم.
