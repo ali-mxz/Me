@@ -66,43 +66,41 @@ def format_irt_persian(value):
     return to_persian_digits(raw)
 
 def get_usdt_irt_rate():
-    # ۱. صرافی تبدیل (باز روی IP خارج - بازار USDT_IRT)
+    # ۱. اردربوک مستقیم نوبیتکس (ریال تقسیم بر ۱۰)
+    try:
+        data = http_get_json("api.nobitex" + ".ir", "/v2/orderbook/USDTIRT")
+        last_trade = float(data.get("lastTradePrice", 0)) / 10.0
+        if last_trade > 10000:
+            return last_trade
+    except Exception:
+        pass
+
+    # ۲. آمار بازار نوبیتکس (ریال تقسیم بر ۱۰)
+    try:
+        data = http_get_json("api.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
+        rate = float(data["stats"]["usdt-rls"]["latest"]) / 10.0
+        if rate > 10000:
+            return rate
+    except Exception:
+        pass
+
+    # ۳. صرافی والکس (تومان)
+    try:
+        data = http_get_json("api.wallex" + ".ir", "/v1/markets")
+        rate = float(data["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
+        if rate > 10000:
+            return rate
+    except Exception:
+        pass
+
+    # ۴. صرافی تبدیل (تومان)
     try:
         data = http_get_json("api.tabdeal" + ".org", "/r/plots/currency_prices/")
         for item in data:
             if item.get("symbol") == "USDT":
                 rate = float(item.get("price_in_irt", 0))
-                if 50000 < rate < 320000:
+                if rate > 10000:
                     return rate
-    except Exception:
-        pass
-
-    # ۲. صرافی اوکی‌اکسچنج (باز روی IP خارج)
-    try:
-        data = http_get_json("api.ok-ex" + ".io", "/oapi/v1/market/tickers")
-        for item in data.get("tickers", []):
-            if item.get("symbol") == "USDT-IRT":
-                rate = float(item.get("last", 0))
-                if 50000 < rate < 320000:
-                    return rate
-    except Exception:
-        pass
-
-    # ۳. صرافی نوبیتکس (در صورت باز بودن)
-    try:
-        data = http_get_json("api.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
-        rate = float(data["stats"]["usdt-rls"]["latest"]) / 10.0
-        if 50000 < rate < 320000:
-            return rate
-    except Exception:
-        pass
-
-    # ۴. صرافی والکس (در صورت باز بودن)
-    try:
-        data = http_get_json("api.wallex" + ".ir", "/v1/markets")
-        rate = float(data["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
-        if 50000 < rate < 320000:
-            return rate
     except Exception:
         pass
 
@@ -261,10 +259,10 @@ def build_post_content(usdt_irt, crypto_map, comm_map):
         gap1, gap2 = pad_for_proportional_font(sym, usd_str)
 
         if item_type == "usdt":
-            lines.append(f"▫️ {sym_link}{gap1}{usd_str}{gap2}⚪️ 0.0%\u2002|\u2002\u2066{irt_fa} تومن\u2069")
+            lines.append(f"▫️ {sym_link}{gap1}{usd_str}{gap2}⚪️ 0.0%\u2002|\u2002\u200eتومن {irt_fa}")
         else:
             lines.append(
-                f"▫️ {sym_link}{gap1}{usd_str}{gap2}{dot} {pct_text}\u2002|\u2002\u2066{irt_fa} تومن\u2069"
+                f"▫️ {sym_link}{gap1}{usd_str}{gap2}{dot} {pct_text}\u2002|\u2002\u200eتومن {irt_fa}"
             )
 
     if len(changes_tracker) >= 2:
