@@ -83,16 +83,15 @@ def get_usdt_irt_rate():
         pass
 
     try:
-        data = http_get_json("publicapi.ramzinex" + ".com", "/exchange/api/v1.0/exchange/pairs")
-        for pair in data.get("data", []):
-            if pair.get("url_name") == "usdt-irr":
-                rate = float(pair.get("buy", 0)) / 10.0
-                if 50000 < rate < 350000:
-                    return rate
+        data = http_get_json("api.tetherland" + ".com", "/api/v5/currencies")
+        rate = float(data["data"]["currencies"]["USDT"]["price"])
+        if 50000 < rate < 350000:
+            return rate
     except Exception:
         pass
 
-    return 0.0
+    return 270000.0
+
 def get_all_crypto_prices():
     prices = {}
     try:
@@ -246,7 +245,7 @@ def build_post_content(usdt_irt, crypto_map, comm_map):
         gap1, gap2 = pad_for_proportional_font(sym, usd_str)
 
         if item_type == "usdt":
-            lines.append(f"▫️ {sym_link}{gap1}{usd_str}{gap2}⚪️\u2002\u2066{irt_fa} تومن\u2069")
+            lines.append(f"▫️ {sym_link}{gap1}{usd_str}{gap2}⚪️ 0.0%\u2002|\u2002\u2066{irt_fa} تومن\u2069")
         else:
             lines.append(
                 f"▫️ {sym_link}{gap1}{usd_str}{gap2}{dot} {pct_text}\u2002|\u2002\u2066{irt_fa} تومن\u2069"
