@@ -1,10 +1,11 @@
 import os
-import requests
+import json
+import urllib.request
 import jdatetime
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-CHANNEL_ID = os.environ.get("CHANNEL_ID")
-PINNED_MSG_ID = os.environ.get("PINNED_MSG_ID")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
+CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
+PINNED_MSG_ID = os.environ.get("PINNED_MSG_ID", "").strip()
 
 COINS_MAP = [
     {"symbol": "USDT", "name": "تتر", "cg_id": "tether"},
@@ -29,6 +30,12 @@ COINS_MAP = [
     {"symbol": "NOT", "name": "نات‌کوین", "cg_id": "notcoin"},
 ]
 
+def http_get_json(host, path):
+    url = "https://" + host + path
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
 def format_price(value, is_irt=True):
     if value is None or value <= 0:
         return "—"
@@ -43,40 +50,32 @@ def format_price(value, is_irt=True):
             return f"{value:,.5f}"
 
 def get_usdt_irt_rate():
-    headers = {"User-Agent": "Mozilla/5.0"}
-
+    # ۱. صرافی نوبیتکس
     try:
-        res = requests.get("https://nobitex.ir", headers=headers, timeout=8).json()
-        rate = float(res["stats"]["usdt-rls"]["latest"]) / 10.0
+        data = http_get_json("api.nobitex.ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
+        rate = float(data["stats"]["usdt-rls"]["latest"]) / 10.0
         if rate > 10000:
-            print(f"USDT rate loaded from Nobitex: {rate}")
+            print(f"SUCCESS: USDT rate from Nobitex = {rate}")
             return rate
     except Exception as e:
         print(f"Nobitex skipped: {e}")
 
+    # ۲. صرافی والکس
     try:
-        res = requests.get("https://wallex.ir", headers=headers, timeout=8).json()
-        rate = float(res["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
+        data = http_get_json("api.wallex.ir", "/v1/markets")
+        rate = float(data["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
         if rate > 10000:
-            print(f"USDT rate loaded from Wallex: {rate}")
+            print(f"SUCCESS: USDT rate from Wallex = {rate}")
             return rate
     except Exception as e:
         print(f"Wallex skipped: {e}")
 
+    # ۳. وب‌سرویس بین‌المللی نرخ ارز
     try:
-        res = requests.get("https://tetherland.com", headers=headers, timeout=8).json()
-        rate = float(res["data"]["currencies"]["USDT"]["price"])
+        data = http_get_json("://er-api.com", "/v6/latest/USD")
+        rate = float(data["rates"]["IRR"]) / 10.0
         if rate > 10000:
-            print(f"USDT rate loaded from Tetherland: {rate}")
-            return rate
-    except Exception as e:
-        print(f"Tetherland skipped: {e}")
-
-    try:
-        res = requests.get("https://er-api.com", headers=headers, timeout=8).json()
-        rate = float(res["rates"]["IRR"]) / 10.0
-        if rate > 10000:
-            print(f"USDT rate loaded from OpenER: {rate}")
+            print(f"SUCCESS: USDT rate from OpenER = {rate}")
             return rate
     except Exception as e:
         print(f"OpenER skipped: {e}")
@@ -86,17 +85,14 @@ def get_usdt_irt_rate():
 
 def get_global_crypto_prices():
     ids = ",".join([c["cg_id"] for c in COINS_MAP])
-    url = f"https://coingecko.com{ids}&vs_currencies=usd&include_24hr_change=true"
+    path = "/api/v3/simple/price?ids=" + ids + "&vs_currencies=usd&include_24hr_change=true"
     try:
-        res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
-        if res.status_code == 200:
-            print("Global prices loaded from CoinGecko.")
-            return res.json()
-        else:
-            print(f"CoinGecko status code: {res.status_code}")
+        data = http_get_json("://coingecko.com", path)
+        print("SUCCESS: Global prices loaded from CoinGecko.")
+        return data
     except Exception as e:
         print(f"CoinGecko error: {e}")
-    return {}
+        return {}
 
 def build_post_content(usdt_irt, cg_data):
     tehran_now = jdatetime.datetime.now()
@@ -156,31 +152,38 @@ def build_post_content(usdt_irt, cg_data):
 
     return "\n".join(lines)
 
-def send_or_update_telegram(text):
-    base_url = f"https://telegram.org{BOT_TOKEN}"
+def tg_api_call(method, payload):
+    url = "https://" + "api.telegram.org/bot" + BOT_TOKEN + "/" + method
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        print(f"Telegram API error ({method}): {e}")
+        return None
 
-    res = requests.post(f"{base_url}/sendMessage", json={
+def send_or_update_telegram(text):
+    res = tg_api_call("sendMessage", {
         "chat_id": CHANNEL_ID,
         "text": text,
         "parse_mode": "HTML",
         "disable_web_page_preview": True
-    }, timeout=15)
+    })
 
-    if res.status_code == 200:
-        msg_id = res.json().get("result", {}).get("message_id")
+    if res and res.get("ok"):
+        msg_id = res.get("result", {}).get("message_id")
         print(f"SUCCESS: Message sent to Telegram! Message ID: {msg_id}")
-    else:
-        print(f"ERROR sending message to Telegram: {res.text}")
 
-    if PINNED_MSG_ID and PINNED_MSG_ID.strip().isdigit():
-        edit_res = requests.post(f"{base_url}/editMessageText", json={
+    if PINNED_MSG_ID and PINNED_MSG_ID.isdigit():
+        edit_res = tg_api_call("editMessageText", {
             "chat_id": CHANNEL_ID,
-            "message_id": int(PINNED_MSG_ID.strip()),
+            "message_id": int(PINNED_MSG_ID),
             "text": text + "\n\n📌 <i>تابلوی زنده (به‌روزرسانی خودکار هر ۳۰ دقیقه)</i>",
             "parse_mode": "HTML",
             "disable_web_page_preview": True
-        }, timeout=15)
-        if edit_res.status_code == 200:
+        })
+        if edit_res and edit_res.get("ok"):
             print("SUCCESS: Pinned message updated.")
 
 if __name__ == "__main__":
