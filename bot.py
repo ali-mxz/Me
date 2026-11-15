@@ -31,289 +31,162 @@ WATCHLIST = [
     {"symbol": "NOT", "type": "crypto", "lookup": "NOT", "tv": "BINANCE:NOTUSDT"},
 ]
 
-def to_arabic_digits(text):
-    return text.translate(str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩"))
+def to_arabic(s):
+    return s.translate(str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩"))
 
-def to_persian_digits(text):
-    return text.translate(str.maketrans("0123456789", "۱۲۳۴۵۶۷۸۹۰"))
+def to_persian(s):
+    return s.translate(str.maketrans("0123456789", "۱۲۳۴۵۶۷۸۹۰"))
 
-def http_get_json(host, path):
-    scheme = "https" + "://"
-    url = scheme + host + path
-    req = urllib.request.Request(url, headers={
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json"
-    })
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+def fetch_json(host, path):
+    req = urllib.request.Request("https" + "://" + host + path, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.loads(r.read().decode("utf-8"))
 
-def format_usd(value):
-    if value is None or value <= 0:
-        return "—"
-    if value >= 1000:
-        return f"${value:,.0f}"
-    elif value >= 10:
-        return f"${value:,.2f}"
-    elif value >= 1:
-        return f"${value:,.3f}"
-    else:
-        return f"${value:,.5f}"
-
-def format_irt_persian(value):
-    if value is None or value <= 0:
-        return "—"
-    raw = f"{value:,.0f}" if value >= 10 else f"{value:,.2f}"
-    return to_persian_digits(raw)
-
-def get_usdt_irt_rate():
-    # ۱. اردربوک مستقیم نوبیتکس (ریال تقسیم بر ۱۰)
+def get_usdt_irt():
+    # ۱. اردربوک نسخه ۳ نوبیتکس (باز روی IP خارج - عدد به ریال است تقسیم بر ۱۰)
     try:
-        data = http_get_json("api.nobitex" + ".ir", "/v2/orderbook/USDTIRT")
-        last_trade = float(data.get("lastTradePrice", 0)) / 10.0
-        if last_trade > 10000:
-            return last_trade
-    except Exception:
-        pass
+        d = fetch_json("apiv2.nobitex" + ".ir", "/v3/orderbook/USDTIRT")
+        p = float(d.get("lastTradePrice", 0)) / 10.0
+        if p > 10000:
+            print(f"USDT from Nobitex v3: {p}")
+            return p
+    except Exception as e:
+        print(f"Nobitex v3 err: {e}")
 
-    # ۲. آمار بازار نوبیتکس (ریال تقسیم بر ۱۰)
+    # ۲. بازارهای عمومی نوبیتکس
     try:
-        data = http_get_json("api.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
-        rate = float(data["stats"]["usdt-rls"]["latest"]) / 10.0
-        if rate > 10000:
-            return rate
-    except Exception:
-        pass
+        d = fetch_json("apiv2.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
+        p = float(d["stats"]["usdt-rls"]["latest"]) / 10.0
+        if p > 10000:
+            print(f"USDT from Nobitex stats: {p}")
+            return p
+    except Exception as e:
+        print(f"Nobitex stats err: {e}")
 
-    # ۳. صرافی والکس (تومان)
+    # ۳. صرافی اوکی‌اکسچنج (باز روی IP خارج)
     try:
-        data = http_get_json("api.wallex" + ".ir", "/v1/markets")
-        rate = float(data["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
-        if rate > 10000:
-            return rate
-    except Exception:
-        pass
-
-    # ۴. صرافی تبدیل (تومان)
-    try:
-        data = http_get_json("api.tabdeal" + ".org", "/r/plots/currency_prices/")
-        for item in data:
-            if item.get("symbol") == "USDT":
-                rate = float(item.get("price_in_irt", 0))
-                if rate > 10000:
-                    return rate
-    except Exception:
-        pass
+        d = fetch_json("api.ok-ex" + ".io", "/oapi/v1/market/tickers")
+        for t in d.get("tickers", []):
+            if t.get("symbol") == "USDT-IRT":
+                p = float(t.get("last", 0))
+                if p > 10000:
+                    print(f"USDT from OkEx: {p}")
+                    return p
+    except Exception as e:
+        print(f"OkEx err: {e}")
 
     return 0.0
 
-def get_all_crypto_prices():
+def get_cryptos():
     prices = {}
     try:
-        data = http_get_json("api.gateio" + ".ws", "/api/v4/spot/tickers")
-        for item in data:
+        for item in fetch_json("api.gateio" + ".ws", "/api/v4/spot/tickers"):
             pair = item.get("currency_pair", "")
             if pair.endswith("_USDT"):
-                sym = pair.replace("_USDT", "")
                 last = float(item.get("last", 0))
-                chg = float(item.get("change_percentage", 0))
                 if last > 0:
-                    prices[sym] = {"price": last, "change": chg}
+                    prices[pair[:-5]] = {"price": last, "chg": float(item.get("change_percentage", 0))}
     except Exception:
         pass
-
-    try:
-        data = http_get_json("api.kucoin" + ".com", "/api/v1/market/allTickers")
-        for item in data.get("data", {}).get("ticker", []):
-            pair = item.get("symbol", "")
-            if pair.endswith("-USDT"):
-                sym = pair.replace("-USDT", "")
-                if sym not in prices:
-                    last = float(item.get("last", 0))
-                    chg = float(item.get("changeRate", 0)) * 100.0
-                    if last > 0:
-                        prices[sym] = {"price": last, "change": chg}
-    except Exception:
-        pass
-
     for sym in ["TON", "XMR"]:
         if sym not in prices:
             try:
-                data = http_get_json("api.coinbase" + ".com", "/v2/prices/" + sym + "-USD/spot")
-                amt = float(data.get("data", {}).get("amount", 0))
+                d = fetch_json("api.coinbase" + ".com", "/v2/prices/" + sym + "-USD/spot")
+                amt = float(d["data"]["amount"])
                 if amt > 0:
-                    prices[sym] = {"price": amt, "change": 0.0}
+                    prices[sym] = {"price": amt, "chg": 0.0}
             except Exception:
                 pass
-
     return prices
 
 def get_commodities():
     comm = {}
     try:
-        xag = http_get_json("api.gold-api" + ".com", "/price/XAG")
-        if xag and xag.get("price"):
-            comm["SLVON"] = {"price": float(xag["price"]), "change": 0.0}
+        xag = fetch_json("api.gold-api" + ".com", "/price/XAG")
+        if xag.get("price"):
+            comm["SLVON"] = {"price": float(xag["price"]), "chg": 0.0}
     except Exception:
         pass
-
-    yahoo_tickers = {"COPXON": "HG=F", "USOON": "CL=F"}
-    if "SLVON" not in comm:
-        yahoo_tickers["SLVON"] = "SI=F"
-
-    for sym, ticker in yahoo_tickers.items():
+    for sym, tk in {"COPXON": "HG=F", "USOON": "CL=F"}.items():
         try:
-            data = http_get_json("query2.finance.yahoo" + ".com", "/v8/finance/chart/" + ticker + "?interval=1d&range=2d")
-            for item in data.get("chart", {}).get("result", []):
-                meta = item.get("meta", {})
-                price = float(meta.get("regularMarketPrice", 0))
+            d = fetch_json("query2.finance.yahoo" + ".com", "/v8/finance/chart/" + tk + "?interval=1d&range=2d")
+            for it in d.get("chart", {}).get("result", []):
+                meta = it.get("meta", {})
+                p = float(meta.get("regularMarketPrice", 0))
                 prev = float(meta.get("chartPreviousClose", 0))
-                if price > 0:
-                    chg = ((price - prev) / prev * 100.0) if prev > 0 else 0.0
-                    comm[sym] = {"price": price, "change": chg}
+                if p > 0:
+                    comm[sym] = {"price": p, "chg": ((p - prev) / prev * 100.0) if prev > 0 else 0.0}
                     break
         except Exception:
             pass
-
     return comm
 
-def pad_for_proportional_font(sym_text, usd_text):
-    narrow_chars = set("I1.,$:")
-    wide_chars = set("WMG@")
+def fmt_usd(v):
+    if v <= 0: return "—"
+    if v >= 1000: return f"${v:,.0f}"
+    if v >= 10: return f"${v:,.2f}"
+    if v >= 1: return f"${v:,.3f}"
+    return f"${v:,.5f}"
 
-    def calc_width(s):
-        w = 0.0
-        for ch in s:
-            if ch in narrow_chars:
-                w += 0.55
-            elif ch in wide_chars:
-                w += 1.25
-            else:
-                w += 1.0
-        return w
+def pad_gaps(sym, usd):
+    w_s = sum(0.55 if c in "I1.,$:" else (1.25 if c in "WMG@" else 1.0) for c in sym)
+    w_u = sum(0.55 if c in "I1.,$:" else (1.25 if c in "WMG@" else 1.0) for c in usd)
+    g1 = "\u2002" + ("\u2006" * max(1, round((7.2 - w_s) * 2)))
+    g2 = "\u2002" + ("\u2006" * max(1, round((10.8 - w_u) * 2)))
+    return g1, g2
 
-    sym_w = calc_width(sym_text)
-    usd_w = calc_width(usd_text)
-
-    gap1_units = max(1, round((7.2 - sym_w) * 2))
-    gap1 = "\u2002" + ("\u2006" * gap1_units)
-
-    gap2_units = max(1, round((10.8 - usd_w) * 2))
-    gap2 = "\u2002" + ("\u2006" * gap2_units)
-
-    return gap1, gap2
-
-def build_post_content(usdt_irt, crypto_map, comm_map):
-    tehran_tz = timezone(timedelta(hours=3, minutes=30))
-    now_tehran = datetime.now(tehran_tz)
-
-    gregorian_str = now_tehran.strftime("%Y-%m-%d")
-    day_abbr = now_tehran.strftime("%a")
-    time_str = now_tehran.strftime("%H:%M")
-    jalali_now = jdatetime.datetime.fromgregorian(datetime=now_tehran)
-    jalali_arabic = to_arabic_digits(jalali_now.strftime("%Y/%m/%d"))
-
+def build_post(usdt_irt, cryptos, comms):
+    now = datetime.now(timezone(timedelta(hours=3, minutes=30)))
+    j_str = to_arabic(jdatetime.datetime.fromgregorian(datetime=now).strftime("%Y/%m/%d"))
     lines = [
         "🦎 <b>Watch Lizard</b>  •  Market Pulse",
-        f"🗓 {gregorian_str}  |  {day_abbr} ⏰ {time_str}  |  {jalali_arabic} 🌻",
+        f"🗓 {now.strftime('%Y-%m-%d')}  |  {now.strftime('%a')} ⏰ {now.strftime('%H:%M')}  |  {j_str} 🌻",
         "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
     ]
+    tracker = []
+    for it in WATCHLIST:
+        sym, tp = it["symbol"], it["type"]
+        link = f'<a href="https://tradingview.com{it["tv"]}">{sym}</a>'
+        usd, chg = 0.0, None
+        if tp == "usdt":
+            usd = 1.0
+        elif tp == "crypto" and it["lookup"] in cryptos:
+            usd, chg = cryptos[it["lookup"]]["price"], cryptos[it["lookup"]]["chg"]
+        elif tp == "commodity" and sym in comms:
+            usd, chg = comms[sym]["price"], comms[sym]["chg"]
 
-    changes_tracker = []
+        irt_val = usd * usdt_irt if (usd > 0 and usdt_irt > 0) else 0
+        irt_fa = to_persian(f"{irt_val:,.0f}" if irt_val >= 10 else f"{irt_val:,.2f}") if irt_val > 0 else "—"
+        usd_str = "$1.00" if tp == "usdt" else fmt_usd(usd)
+        g1, g2 = pad_gaps(sym, usd_str)
 
-    for item in WATCHLIST:
-        sym = item["symbol"]
-        item_type = item["type"]
-        tv_url = "https" + "://www.tradingview" + ".com/chart/?symbol=" + item["tv"]
-        sym_link = f'<a href="{tv_url}">{sym}</a>'
-
-        usd_price = 0.0
-        change_24h = None
-
-        if item_type == "usdt":
-            irt_price = usdt_irt
-            usd_price = 1.0
-        elif item_type == "crypto":
-            m_info = crypto_map.get(item["lookup"])
-            if m_info:
-                usd_price = m_info["price"]
-                change_24h = m_info["change"]
-            irt_price = usd_price * usdt_irt if (usd_price > 0 and usdt_irt > 0) else 0
-        elif item_type == "commodity":
-            c_info = comm_map.get(sym)
-            if c_info:
-                usd_price = c_info["price"]
-                change_24h = c_info["change"]
-            irt_price = usd_price * usdt_irt if (usd_price > 0 and usdt_irt > 0) else 0
-
-        if change_24h is not None:
-            dot = "🟢" if change_24h >= 0 else "🔴"
-            sign = "+" if change_24h > 0 else ""
-            pct_text = f"{sign}{change_24h:.1f}%"
-            changes_tracker.append({"sym": sym, "chg": float(change_24h)})
+        if chg is not None:
+            dot = "🟢" if chg >= 0 else "🔴"
+            pct = f"{'+' if chg > 0 else ''}{chg:.1f}%"
+            tracker.append({"sym": sym, "chg": chg})
         else:
-            dot = "⚪️"
-            pct_text = "0.0%"
+            dot, pct = "⚪️", "0.0%"
 
-        irt_fa = format_irt_persian(irt_price)
-        usd_str = "$1.00" if item_type == "usdt" else format_usd(usd_price)
-        gap1, gap2 = pad_for_proportional_font(sym, usd_str)
+        # تومن دقیقاً در سمت چپِ عدد قرار می‌گیرد
+        lines.append(f"▫️ {link}{g1}{usd_str}{g2}{dot} {pct}\u2002|\u2002\u200eتومن {irt_fa}")
 
-        if item_type == "usdt":
-            lines.append(f"▫️ {sym_link}{gap1}{usd_str}{gap2}⚪️ 0.0%\u2002|\u2002\u200eتومن {irt_fa}")
-        else:
-            lines.append(
-                f"▫️ {sym_link}{gap1}{usd_str}{gap2}{dot} {pct_text}\u2002|\u2002\u200eتومن {irt_fa}"
-            )
-
-    if len(changes_tracker) >= 2:
-        top_gainer = max(changes_tracker, key=lambda x: x["chg"])
-        top_loser = min(changes_tracker, key=lambda x: x["chg"])
-
+    if len(tracker) >= 2:
+        hi = max(tracker, key=lambda x: x["chg"])
+        lo = min(tracker, key=lambda x: x["chg"])
         lines.append("<blockquote expandable>📊 <b>24h Watchlist Summary</b>")
-        lines.append(f"▲ Top Gainer: {top_gainer['sym']} ({top_gainer['chg']:+.2f}%)")
-        lines.append(f"▼ Top Loser: {top_loser['sym']} ({top_loser['chg']:+.2f}%)</blockquote>")
-
+        lines.append(f"▲ Top Gainer: {hi['sym']} ({hi['chg']:+.2f}%)")
+        lines.append(f"▼ Top Loser: {lo['sym']} ({lo['chg']:+.2f}%)</blockquote>")
     return "\n".join(lines)
 
-def tg_api_call(method, payload):
-    scheme = "https" + "://"
-    tg_host = "api.telegram" + ".org"
-    url = scheme + tg_host + "/bot" + BOT_TOKEN + "/" + method
-    body = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except Exception as e:
-        print(f"Telegram API error ({method}): {e}")
-        return None
-
-def send_or_update_telegram(text):
-    res = tg_api_call("sendMessage", {
-        "chat_id": CHANNEL_ID,
-        "text": text,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": True
-    })
-
-    if res and res.get("ok"):
-        print(f"SUCCESS: Message sent. ID: {res.get('result', {}).get('message_id')}")
-
-    if PINNED_MSG_ID and PINNED_MSG_ID.isdigit():
-        tg_api_call("editMessageText", {
-            "chat_id": CHANNEL_ID,
-            "message_id": int(PINNED_MSG_ID),
-            "text": text + "\n📌 Live Board • Auto-updated",
-            "parse_mode": "HTML",
-            "disable_web_page_preview": True
-        })
+def send_tg(text):
+    url = "https" + "://api.telegram" + ".org/bot" + BOT_TOKEN + "/sendMessage"
+    req = urllib.request.Request(url, data=json.dumps({
+        "chat_id": CHANNEL_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True
+    }).encode("utf-8"), headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        print(r.read().decode("utf-8"))
 
 if __name__ == "__main__":
-    if not BOT_TOKEN or not CHANNEL_ID:
-        exit(1)
-
-    usdt_rate = get_usdt_irt_rate()
-    crypto_prices = get_all_crypto_prices()
-    comm_prices = get_commodities()
-    post_text = build_post_content(usdt_rate, crypto_prices, comm_prices)
-    send_or_update_telegram(post_text)
+    if BOT_TOKEN and CHANNEL_ID:
+        u = get_usdt_irt()
+        send_tg(build_post(u, get_cryptos(), get_commodities()))
