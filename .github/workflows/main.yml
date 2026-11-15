@@ -1,4 +1,4 @@
-name: Bitpin Crypto Watchlist Bot
+name: Watch Lizard Bot
 
 on:
   schedule:
