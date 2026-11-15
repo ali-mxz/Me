@@ -43,24 +43,39 @@ def format_price(value: float, is_irt: bool = True) -> str:
             return f"{value:,.5f}"
 
 def fetch_bitpin_data():
-    url = "https://bitpin.market"
-    try:
-        res = requests.get(url, timeout=15)
-        if res.status_code != 200:
-            res = requests.get("https://bitpin.market", timeout=15)
-        
-        data = res.json()
-        items = data if isinstance(data, list) else data.get("results", [])
-        
-        market_map = {}
-        for item in items:
-            code = item.get("symbol") or item.get("code")
-            if code:
-                market_map[code.upper()] = item
-        return market_map
-    except Exception as e:
-        print(f"Error fetching Bitpin data: {e}")
-        return {}
+    # لیست آدرس‌های رسمی و جایگزین API بیت‌پین
+    endpoints = [
+        "https://api.bitpin.org/v1/mkt/tickers/",
+        "https://api.bitpin.org/v1/mkt/markets/",
+        "https://bitpin.ir",
+        "https://bitpin.ir"
+    ]
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json"
+    }
+
+    for url in endpoints:
+        try:
+            print(f"Trying {url} ...")
+            res = requests.get(url, headers=headers, timeout=15)
+            if res.status_code == 200:
+                data = res.json()
+                items = data if isinstance(data, list) else data.get("results", [])
+                if items:
+                    market_map = {}
+                    for item in items:
+                        code = item.get("symbol") or item.get("code")
+                        if code:
+                            market_map[code.upper()] = item
+                    print(f"SUCCESS: Connected to {url} ({len(market_map)} markets loaded)")
+                    return market_map
+            else:
+                print(f"Status {res.status_code} from {url}")
+        except Exception as e:
+            print(f"Failed {url}: {e}")
+            
+    return {}
 
 def build_post_content(markets: dict) -> str:
     tehran_now = jdatetime.datetime.now()
@@ -114,7 +129,7 @@ def build_post_content(markets: dict) -> str:
             )
 
     if changes_tracker:
-        changes_tracker.sort(key=lambda x: x[1], reverse=True)
+        changes_tracker.sort(key=lambda x: x, reverse=True)
         top_gainer = changes_tracker[0]
         top_loser = changes_tracker[-1]
         
@@ -137,9 +152,9 @@ def send_or_update_telegram(text: str):
     
     if res.status_code == 200:
         msg_id = res.json().get("result", {}).get("message_id")
-        print(f"SUCCESS: Message sent. ID: {msg_id}")
+        print(f"SUCCESS: Message sent to Telegram! Message ID: {msg_id}")
     else:
-        print(f"ERROR sending message: {res.text}")
+        print(f"ERROR sending message to Telegram: {res.text}")
 
     if PINNED_MSG_ID and PINNED_MSG_ID.strip().isdigit():
         edit_res = requests.post(f"{base_url}/editMessageText", json={
@@ -162,4 +177,4 @@ if __name__ == "__main__":
         post_text = build_post_content(markets_data)
         send_or_update_telegram(post_text)
     else:
-        print("ERROR: No data received from Bitpin.")
+        print("ERROR: No data received from any Bitpin endpoint.")
