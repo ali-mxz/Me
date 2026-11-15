@@ -47,37 +47,35 @@ def fetch_json(host, path):
         return json.loads(r.read().decode("utf-8"))
 
 def get_usdt_irt():
-    # ۱. صرافی تبدیل (باز روی IP خارج)
-    try:
-        d = fetch_json("api.tabdeal" + ".org", "/r/plots/currency_prices/")
-        for item in d:
-            if item.get("symbol") == "USDT":
-                p = float(item.get("price_in_irt", 0))
-                if p > 10000:
-                    print(f"USDT loaded from Tabdeal: {p}")
-                    return p
-    except Exception as e:
-        print(f"Tabdeal err: {e}")
-
-    # ۲. صرافی تترلند (باز روی IP خارج)
-    try:
-        d = fetch_json("api.tetherland" + ".com", "/api/v5/currencies")
-        p = float(d["data"]["currencies"]["USDT"]["price"])
-        if p > 10000:
-            print(f"USDT loaded from Tetherland: {p}")
-            return p
-    except Exception as e:
-        print(f"Tetherland err: {e}")
-
-    # ۳. صرافی نوبیتکس (در صورت باز بودن)
+    # ۱. اولویت اول: صرافی نوبیتکس (اردربوک مستقیم تتر به تومان)
     try:
         d = fetch_json("apiv2.nobitex" + ".ir", "/v3/orderbook/USDTIRT")
         p = float(d.get("lastTradePrice", 0)) / 10.0
         if p > 10000:
-            print(f"USDT loaded from Nobitex: {p}")
+            print(f"USDT loaded from Nobitex v3: {p}")
             return p
     except Exception as e:
-        print(f"Nobitex err: {e}")
+        print(f"Nobitex v3 err: {e}")
+
+    # ۲. اولویت دوم: آمار لحظه‌ای نوبیتکس
+    try:
+        d = fetch_json("apiv2.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
+        p = float(d["stats"]["usdt-rls"]["latest"]) / 10.0
+        if p > 10000:
+            print(f"USDT loaded from Nobitex stats: {p}")
+            return p
+    except Exception as e:
+        print(f"Nobitex stats err: {e}")
+
+    # ۳. اولویت سوم: صرافی والکس
+    try:
+        d = fetch_json("api.wallex" + ".ir", "/v1/markets")
+        p = float(d["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
+        if p > 10000:
+            print(f"USDT loaded from Wallex: {p}")
+            return p
+    except Exception as e:
+        print(f"Wallex err: {e}")
 
     return 0.0
 
