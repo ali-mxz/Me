@@ -6,7 +6,6 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 PINNED_MSG_ID = os.environ.get("PINNED_MSG_ID")
 
-# واچ‌لیست ۲۰ تایی با شناسه‌های دقیق CoinGecko
 COINS_MAP = [
     {"symbol": "USDT", "name": "تتر", "cg_id": "tether"},
     {"symbol": "BTC", "name": "بیت‌کوین", "cg_id": "bitcoin"},
@@ -30,7 +29,7 @@ COINS_MAP = [
     {"symbol": "NOT", "name": "نات‌کوین", "cg_id": "notcoin"},
 ]
 
-def format_price(value: float, is_irt: bool = True) -> str:
+def format_price(value, is_irt=True):
     if value is None or value <= 0:
         return "—"
     if is_irt:
@@ -43,56 +42,49 @@ def format_price(value: float, is_irt: bool = True) -> str:
         else:
             return f"{value:,.5f}"
 
-def get_usdt_irt_rate() -> float:
-    """دریافت نرخ لحظه‌ای تتر به تومان با زنجیره پشتیبان ۵ لایه"""
+def get_usdt_irt_rate():
     headers = {"User-Agent": "Mozilla/5.0"}
 
-    # لایه ۱: صرافی نوبیتکس (ریال تقسیم بر ۱۰)
     try:
         res = requests.get("https://nobitex.ir", headers=headers, timeout=8).json()
         rate = float(res["stats"]["usdt-rls"]["latest"]) / 10.0
         if rate > 10000:
             print(f"USDT rate loaded from Nobitex: {rate}")
             return rate
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Nobitex skipped: {e}")
 
-    # لایه ۲: صرافی والکس (تومان)
     try:
         res = requests.get("https://wallex.ir", headers=headers, timeout=8).json()
         rate = float(res["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
         if rate > 10000:
             print(f"USDT rate loaded from Wallex: {rate}")
             return rate
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Wallex skipped: {e}")
 
-    # لایه ۳: صرافی تترلند (تومان)
     try:
         res = requests.get("https://tetherland.com", headers=headers, timeout=8).json()
         rate = float(res["data"]["currencies"]["USDT"]["price"])
         if rate > 10000:
             print(f"USDT rate loaded from Tetherland: {rate}")
             return rate
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Tetherland skipped: {e}")
 
-    # لایه ۴: منبع بین‌المللی نرخ ارز (بدون محدودیت جغرافیایی - ریال تقسیم بر ۱۰)
     try:
         res = requests.get("https://er-api.com", headers=headers, timeout=8).json()
         rate = float(res["rates"]["IRR"]) / 10.0
         if rate > 10000:
             print(f"USDT rate loaded from OpenER: {rate}")
             return rate
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"OpenER skipped: {e}")
 
-    # لایه ۵: نرخ اضطراری ثبت شده در گیت‌هاب
     fallback = os.environ.get("FALLBACK_USDT_IRT")
     return float(fallback) if fallback else 0.0
 
-def get_global_crypto_prices() -> dict:
-    """دریافت قیمت دلاری و درصد تغییر ۲۴ ساعته از CoinGecko"""
+def get_global_crypto_prices():
     ids = ",".join([c["cg_id"] for c in COINS_MAP])
     url = f"https://coingecko.com{ids}&vs_currencies=usd&include_24hr_change=true"
     try:
@@ -106,13 +98,13 @@ def get_global_crypto_prices() -> dict:
         print(f"CoinGecko error: {e}")
     return {}
 
-def build_post_content(usdt_irt: float, cg_data: dict) -> str:
+def build_post_content(usdt_irt, cg_data):
     tehran_now = jdatetime.datetime.now()
     date_str = tehran_now.strftime("%Y/%m/%d")
     time_str = tehran_now.strftime("%H:%M")
 
     lines = [
-        f"📊 <b>نبض لحظه‌ای بازار کریپتو و کالا</b>",
+        "🦎 <b>Watch Lizard | نبض لحظه‌ای بازار</b>",
         f"🗓 تاریخ: <code>{date_str}</code>  |  ⏰ ساعت: <code>{time_str}</code>",
         "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
     ]
@@ -138,7 +130,7 @@ def build_post_content(usdt_irt: float, cg_data: dict) -> str:
             sign = "+" if change_24h > 0 else ""
             change_str = f"({sign}{change_24h:.1f}%)"
             if sym != "USDT":
-                changes_tracker.append((sym, change_24h))
+                changes_tracker.append({"sym": sym, "chg": float(change_24h)})
         else:
             icon = "🔹"
             change_str = ""
@@ -153,19 +145,19 @@ def build_post_content(usdt_irt: float, cg_data: dict) -> str:
                 f"{icon} <b>{sym}</b>: <code>{irt_formatted}</code> ت  |  <code>${usd_formatted}</code> {change_str}"
             )
 
-    if changes_tracker:
-        changes_tracker.sort(key=lambda x: x[1], reverse=True)
-        top_gainer = changes_tracker[0]
-        top_loser = changes_tracker[-1]
+    if len(changes_tracker) >= 2:
+        sorted_list = sorted(changes_tracker, key=lambda item: item["chg"], reverse=True)
+        top_gainer = sorted_list[0]
+        top_loser = sorted_list[-1]
 
         lines.append("\n<blockquote expandable>📈 <b>خلاصه نوسانات ۲۴ ساعته واچ‌لیست:</b>")
-        lines.append(f"🚀 بیشترین رشد: <b>{top_gainer[0]}</b> ({top_gainer[1]:+.2f}%)")
-        lines.append(f"📉 بیشترین اصلاح: <b>{top_loser[0]}</b> ({top_loser[1]:+.2f}%)")
+        lines.append(f"🚀 بیشترین رشد: <b>{top_gainer['sym']}</b> ({top_gainer['chg']:+.2f}%)")
+        lines.append(f"📉 بیشترین اصلاح: <b>{top_loser['sym']}</b> ({top_loser['chg']:+.2f}%)")
         lines.append("💡 <i>محاسبه شده بر اساس نرخ لحظه‌ای بازار اسپات.</i></blockquote>")
 
     return "\n".join(lines)
 
-def send_or_update_telegram(text: str):
+def send_or_update_telegram(text):
     base_url = f"https://telegram.org{BOT_TOKEN}"
 
     res = requests.post(f"{base_url}/sendMessage", json={
