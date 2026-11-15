@@ -68,37 +68,24 @@ def get_usdt_irt():
         print(f"Wallex err: {e}")
 
     return 0.0
-
 def get_cryptos():
     prices = {}
+    # دریافت یکجا و دقیق قیمت لحظه‌ای تمام ارزهای واچ‌لیست از CryptoCompare (بدون تداخل توکن‌های مشابه)
+    syms = "BTC,ETH,XRP,SOL,PAXG,TON,DOGE,LINK,XMR,BNB,TRX,ADA,ZEC,SUI,LTC,NOT"
     try:
-        for item in fetch_json("api.gateio" + ".ws", "/api/v4/spot/tickers"):
-            pair = item.get("currency_pair", "")
-            if pair.endswith("_USDT"):
-                last = float(item.get("last", 0))
-                if last > 0:
-                    prices[pair[:-5]] = {"price": last, "chg": float(item.get("change_percentage", 0))}
-    except Exception:
-        pass
-
-    # تضمینی برای XMR و TON از صرافی Kraken
-    for sym, kpair in {"XMR": "XXMRZUSD", "TON": "TONUSD"}.items():
-        if sym not in prices:
-            try:
-                d = fetch_json("api.kraken" + ".com", "/0/public/Ticker?pair=" + kpair)
-                for _, info in d.get("result", {}).items():
-                    c_list = info.get("c", [])
-                    o_val = float(info.get("o", 0))
-                    for c_str in c_list:
-                        last = float(c_str)
-                        if last > 0:
-                            chg = ((last - o_val) / o_val * 100.0) if o_val > 0 else 0.0
-                            prices[sym] = {"price": last, "chg": chg}
-                        break
-            except Exception:
-                pass
+        d = fetch_json("min-api.cryptocompare" + ".com", "/data/pricemultifull?fsyms=" + syms + "&tsyms=USD")
+        raw = d.get("RAW", {})
+        for sym in syms.split(","):
+            info = raw.get(sym, {}).get("USD", {})
+            p = float(info.get("PRICE", 0))
+            chg = float(info.get("CHANGEPCT24HOUR", 0))
+            if p > 0:
+                prices[sym] = {"price": p, "chg": chg}
+    except Exception as e:
+        print(f"CryptoCompare err: {e}")
 
     return prices
+
 
 def get_commodities():
     comm = {}
