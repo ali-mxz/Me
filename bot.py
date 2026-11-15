@@ -69,7 +69,7 @@ def get_usdt_irt_rate():
     try:
         data = http_get_json("api.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
         rate = float(data["stats"]["usdt-rls"]["latest"]) / 10.0
-        if rate > 10000:
+        if 50000 < rate < 350000:
             return rate
     except Exception:
         pass
@@ -77,20 +77,128 @@ def get_usdt_irt_rate():
     try:
         data = http_get_json("api.wallex" + ".ir", "/v1/markets")
         rate = float(data["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
-        if rate > 10000:
+        if 50000 < rate < 350000:
             return rate
     except Exception:
         pass
 
     try:
-        data = http_get_json("open" + ".er-api.com", "/v6/latest/USD")
-        rate = float(data["rates"]["IRR"]) / 10.0
-        if rate > 10000:
-            return rate
+        data = http_get_json("publicapi.ramzinex" + ".com", "/exchange/api/v1.0/exchange/pairs")
+        for pair in data.get("data", []):
+            if pair.get("url_name") == "usdt-irr":
+                rate = float(pair.get("buy", 0)) / 10.0
+                if 50000 < rate < 350000:
+                    return rate
     except Exception:
         pass
 
     return 0.0
+
+حق با شماست، فراموش کردم که بلوک کدهای طولانی اینجا چندپاره می‌شوند. دقیقاً در دو بسته کوتاه تقسیم کردم که هر کدام کمتر از ۱۰۰ خط است تا بدون حتی یک خط شکستگی کپی شوند.
+
+بسته اول (نیمه بالایی bot.py — کپی و در صفحه خالی گیت‌هاب پیست کنید)
+
+python
+import os
+import json
+import urllib.request
+from datetime import datetime, timezone, timedelta
+import jdatetime
+
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
+CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
+PINNED_MSG_ID = os.environ.get("PINNED_MSG_ID", "").strip()
+
+WATCHLIST = [
+    {"symbol": "USDT", "type": "usdt", "tv": "CRYPTO:USDTUSD"},
+    {"symbol": "BTC", "type": "crypto", "lookup": "BTC", "tv": "BINANCE:BTCUSDT"},
+    {"symbol": "ETH", "type": "crypto", "lookup": "ETH", "tv": "BINANCE:ETHUSDT"},
+    {"symbol": "XRP", "type": "crypto", "lookup": "XRP", "tv": "BINANCE:XRPUSDT"},
+    {"symbol": "SOL", "type": "crypto", "lookup": "SOL", "tv": "BINANCE:SOLUSDT"},
+    {"symbol": "PAXG", "type": "crypto", "lookup": "PAXG", "tv": "BINANCE:PAXGUSDT"},
+    {"symbol": "SLVON", "type": "commodity", "tv": "TVC:SILVER"},
+    {"symbol": "COPXON", "type": "commodity", "tv": "COMEX:HG1!"},
+    {"symbol": "USOON", "type": "commodity", "tv": "TVC:USOIL"},
+    {"symbol": "GRAM", "type": "crypto", "lookup": "TON", "tv": "OKX:TONUSDT"},
+    {"symbol": "DOGE", "type": "crypto", "lookup": "DOGE", "tv": "BINANCE:DOGEUSDT"},
+    {"symbol": "LINK", "type": "crypto", "lookup": "LINK", "tv": "BINANCE:LINKUSDT"},
+    {"symbol": "XMR", "type": "crypto", "lookup": "XMR", "tv": "KRAKEN:XMRUSD"},
+    {"symbol": "BNB", "type": "crypto", "lookup": "BNB", "tv": "BINANCE:BNBUSDT"},
+    {"symbol": "TRX", "type": "crypto", "lookup": "TRX", "tv": "BINANCE:TRXUSDT"},
+    {"symbol": "ADA", "type": "crypto", "lookup": "ADA", "tv": "BINANCE:ADAUSDT"},
+    {"symbol": "ZEC", "type": "crypto", "lookup": "ZEC", "tv": "BINANCE:ZECUSDT"},
+    {"symbol": "SUI", "type": "crypto", "lookup": "SUI", "tv": "BINANCE:SUIUSDT"},
+    {"symbol": "LTC", "type": "crypto", "lookup": "LTC", "tv": "BINANCE:LTCUSDT"},
+    {"symbol": "NOT", "type": "crypto", "lookup": "NOT", "tv": "BINANCE:NOTUSDT"},
+]
+
+def to_arabic_digits(text):
+    return text.translate(str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩"))
+
+def to_persian_digits(text):
+    return text.translate(str.maketrans("0123456789", "۱۲۳۴۵۶۷۸۹۰"))
+
+def http_get_json(host, path):
+    scheme = "https" + "://"
+    url = scheme + host + path
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json"
+    })
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+def format_usd(value):
+    if value is None or value <= 0:
+        return "—"
+    if value >= 1000:
+        return f"${value:,.0f}"
+    elif value >= 10:
+        return f"${value:,.2f}"
+    elif value >= 1:
+        return f"${value:,.3f}"
+    else:
+        return f"${value:,.5f}"
+
+def format_irt_persian(value):
+    if value is None or value <= 0:
+        return "—"
+    raw = f"{value:,.0f}" if value >= 10 else f"{value:,.2f}"
+    return to_persian_digits(raw)
+
+def get_usdt_irt_rate():
+    try:
+        data = http_get_json("api.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
+        rate = float(data["stats"]["usdt-rls"]["latest"]) / 10.0
+        if 50000 < rate < 350000:
+            return rate
+    except Exception:
+        pass
+
+    try:
+        data = http_get_json("api.wallex" + ".ir", "/v1/markets")
+        rate = float(data["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
+        if 50000 < rate < 350000:
+            return rate
+    except Exception:
+        pass
+
+    try:
+        data = http_get_json("publicapi.ramzinex" + ".com", "/exchange/api/v1.0/exchange/pairs")
+        for pair in data.get("data", []):
+            if pair.get("url_name") == "usdt-irr":
+                rate = float(pair.get("buy", 0)) / 10.0
+                if 50000 < rate < 350000:
+                    return rate
+    except Exception:
+        pass
+
+    return 0.0
+Use code with caution.
+
+بسته دوم (نیمه پایینی bot.py — بلافاصله زیر بسته اول پیست کنید)
+
+python
 def get_all_crypto_prices():
     prices = {}
     try:
@@ -162,11 +270,9 @@ def get_commodities():
     return comm
 
 def pad_for_proportional_font(sym_text, usd_text):
-    """ترفند تایپوگرافی برای هم‌تراز کردن ستون دایره‌ها بدون استفاده از فونت مونواسپیس"""
-    # محاسبه وزن عرضی کاراکترها در فونت استاندارد تلگرام
     narrow_chars = set("I1.,$:")
     wide_chars = set("WMG@")
-    
+
     def calc_width(s):
         w = 0.0
         for ch in s:
@@ -180,15 +286,13 @@ def pad_for_proportional_font(sym_text, usd_text):
 
     sym_w = calc_width(sym_text)
     usd_w = calc_width(usd_text)
-    
-    # تراز کردن فاصله بین نماد و دلار (هدف: عرض 7 واحد)
+
     gap1_units = max(1, round((7.2 - sym_w) * 2))
     gap1 = "\u2002" + ("\u2006" * gap1_units)
-    
-    # تراز کردن فاصله بین دلار و دایره وضعیت (هدف: عرض 10.5 واحد)
+
     gap2_units = max(1, round((10.8 - usd_w) * 2))
     gap2 = "\u2002" + ("\u2006" * gap2_units)
-    
+
     return gap1, gap2
 
 def build_post_content(usdt_irt, crypto_map, comm_map):
@@ -245,19 +349,20 @@ def build_post_content(usdt_irt, crypto_map, comm_map):
 
         irt_fa = format_irt_persian(irt_price)
         usd_str = "$1.00" if item_type == "usdt" else format_usd(usd_price)
-        
         gap1, gap2 = pad_for_proportional_font(sym, usd_str)
-        
-        # چیدمان: نماد | دلار | دایره حائل | درصد + قیمت تومانی با تثبیت جهت چپ‌به‌راست (\u200e)
-        lines.append(
-            f"▫️ {sym_link}{gap1}{usd_str}{gap2}{dot}\u2002{irt_fa}\u200e تومن  ({pct_text})"
-        )
+
+        if item_type == "usdt":
+            lines.append(f"▫️ {sym_link}{gap1}{usd_str}{gap2}⚪️\u2002\u2066{irt_fa} تومن\u2069")
+        else:
+            lines.append(
+                f"▫️ {sym_link}{gap1}{usd_str}{gap2}{dot} {pct_text}\u2002|\u2002\u2066{irt_fa} تومن\u2069"
+            )
 
     if len(changes_tracker) >= 2:
         top_gainer = max(changes_tracker, key=lambda x: x["chg"])
         top_loser = min(changes_tracker, key=lambda x: x["chg"])
 
-        lines.append("\n<blockquote expandable>📊 <b>24h Watchlist Summary</b>")
+        lines.append("<blockquote expandable>📊 <b>24h Watchlist Summary</b>")
         lines.append(f"▲ Top Gainer: {top_gainer['sym']} ({top_gainer['chg']:+.2f}%)")
         lines.append(f"▼ Top Loser: {top_loser['sym']} ({top_loser['chg']:+.2f}%)</blockquote>")
 
@@ -305,3 +410,4 @@ if __name__ == "__main__":
     comm_prices = get_commodities()
     post_text = build_post_content(usdt_rate, crypto_prices, comm_prices)
     send_or_update_telegram(post_text)
+Use code with caution.
