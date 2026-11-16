@@ -35,7 +35,7 @@ def to_arabic(s):
     return s.translate(str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩"))
 
 def to_persian(s):
-    return s.translate(str.maketrans("0123456789", "۱۲۳۴۵۶۷۸۹۰"))
+    return s.translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
 
 def fetch_json(host, path):
     scheme = "https" + "://"
