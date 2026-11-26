@@ -229,4 +229,3 @@ if __name__ == "__main__":
                 "parse_mode": "HTML",
                 "disable_web_page_preview": True
             })
-
