@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import urllib.request
 from datetime import datetime, timezone, timedelta
 import jdatetime
@@ -143,17 +144,17 @@ def pad_compact(sym):
     g2 = "\u2002\u2006"
     return g1, g2
 
-def build_post(usdt_irt, cryptos, comms):
+def build_post(usdt_irt, cryptos, comms, with_seconds=True):
     now = datetime.now(timezone(timedelta(hours=3, minutes=30)))
     j_str = to_arabic(jdatetime.datetime.fromgregorian(datetime=now).strftime("%Y/%m/%d"))
+    time_fmt = "%H:%M:%S" if with_seconds else "%H:%M"
     lines = [
-        f"{now.strftime('%a')}, {now.strftime('%Y-%m-%d')}  🗓  {now.strftime('%H:%M')}  ⏰  {j_str}",
+        f"{now.strftime('%a')}, {now.strftime('%Y-%m-%d')}  🗓  {now.strftime(time_fmt)}  ⏰  {j_str}",
         "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
     ]
     tracker = []
     for it in WATCHLIST:
         sym, tp = it["symbol"], it["type"]
-        # تبدیل کاراکترهای غیرمجاز در پارامتر startapp (مثل : و !) به شکل استاندارد
         safe_tv = it["tv"].replace(":", "_").replace("!", "")
         app_url = f"{MINI_APP_BASE}{safe_tv}"
         link = f'<a href="{app_url}">{sym}</a>'
@@ -171,7 +172,16 @@ def build_post(usdt_irt, cryptos, comms):
             usd, chg = comms[sym]["price"], comms[sym]["chg"]
 
         irt_val = usd * usdt_irt if (usd > 0 and usdt_irt > 0) else 0
-        irt_fa = to_persian(f"{irt_val:,.0f}" if irt_val >= 10 else f"{irt_val:,.2f}") if irt_val > 0 else "—"
+        if irt_val > 0:
+            raw_irt = f"{irt_val:,.0f}" if irt_val >= 10 else f"{irt_val:,.2f}"
+            # فقط برای USDT عدد تومانی انگلیسی و مونو (قابل کپی سریع) شود
+            if tp == "usdt":
+                irt_display = f"<code>{raw_irt}</code>"
+            else:
+                irt_display = to_persian(raw_irt)
+        else:
+            irt_display = "—"
+
         num_str = fmt_num(usd, is_usdt=(tp == "usdt"))
 
         if chg is not None:
@@ -184,11 +194,13 @@ def build_post(usdt_irt, cryptos, comms):
 
         g1, g2 = pad_compact(sym)
         usd_part = f"<code>{num_str}</code>$" if num_str != "—" else "—"
-        lines.append(f"▫️{link}{g1}{usd_part}{g2}{pct}{dot}\u2002\u200eتومن\u2009\u200e{irt_fa}")
+        lines.append(f"▫️{link}{g1}{usd_part}{g2}{pct}{dot}\u2006\u200eتومن\u2009\u200e{irt_display}")
 
     if len(tracker) >= 2:
         hi = max(tracker, key=lambda x: x["chg"])
         lo = min(tracker, key=lambda x: x["chg"])
+        # فاصله نازک بین آخرین سطر و باکس 24 ساعته
+        lines.append("")
         lines.append(f"<blockquote>📊 24h: 🚀 {hi['sym']} {hi['chg']:+.1f}% | 🔻 {lo['sym']} {lo['chg']:+.1f}%</blockquote>")
     return "\n".join(lines)
 
@@ -210,22 +222,29 @@ def tg_call(method, payload):
 
 if __name__ == "__main__":
     if BOT_TOKEN and CHANNEL_ID:
+        now_ir = datetime.now(timezone(timedelta(hours=3, minutes=30)))
         u = get_usdt_irt()
         c = get_cryptos()
         cm = get_commodities()
-        text = build_post(u, c, cm)
-        if PINNED_MSG_ID:
-            tg_call("editMessageText", {
-                "chat_id": CHANNEL_ID,
-                "message_id": int(PINNED_MSG_ID),
-                "text": text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": True
-            })
-        else:
+
+        # ۱. اگر در مضرب ۵ دقیقه هستیم (مثلاً 17:45)، یک کادر آرشیو ثابت (بدون ثانیه) به کانال بفرست
+        if now_ir.minute % 5 == 0:
+            archive_text = build_post(u, c, cm, with_seconds=False)
             tg_call("sendMessage", {
                 "chat_id": CHANNEL_ID,
-                "text": text,
+                "text": archive_text,
                 "parse_mode": "HTML",
                 "disable_web_page_preview": True
             })
+
+        # ۲. کادر پین‌شده (آخر) را با ساعتِ ثانیه‌شمار به‌روز کن
+        if PINNED_MSG_ID:
+            for _ in range(9):  # حدود ۴۵ ثانیه آپدیت زنده هر ۵ ثانیه یک‌بار
+                live_text = build_post(u, c, cm, with_seconds=True)
+                tg_call("editMessageText", {
+                    "chat_id": CHANNEL_ID,
+                    "message_id": int(PINNED_MSG_ID),
+                    "text": live_text,
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": True
+                })
