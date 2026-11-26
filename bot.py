@@ -176,7 +176,7 @@ def build_post(usdt_irt, cryptos, comms):
             dot, pct = "⚪️", to_subscript("0.0")
 
         # تثبیت قطعی «تومن» در سمت چپِ عدد فارسی
-        lines.append(f"▫️ {link}{g1}{usd_str}{g2}{dot}{pct}\u2002|\u2002\u200eتومن \u200e{irt_fa}")
+        lines.append(f"▫️ {link}{g1}{usd_str}{g2}{pct}{dot}\u2002\u2002\u200eتومن \u200e{irt_fa}")
 
     if len(tracker) >= 2:
         hi = max(tracker, key=lambda x: x["chg"])
