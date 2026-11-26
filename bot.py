@@ -54,19 +54,17 @@ def get_usdt_irt():
         d = fetch_json("api.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
         p = float(d["stats"]["usdt-rls"]["latest"]) / 10.0
         if p > 10000:
-            print(f"USDT loaded from Nobitex: {p}")
             return p
-    except Exception as e:
-        print(f"Nobitex err: {e}")
+    except Exception:
+        pass
 
     try:
         d = fetch_json("api.wallex" + ".ir", "/v1/markets")
         p = float(d["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
         if p > 10000:
-            print(f"USDT loaded from Wallex: {p}")
             return p
-    except Exception as e:
-        print(f"Wallex err: {e}")
+    except Exception:
+        pass
 
     return 0.0
 
@@ -82,7 +80,6 @@ def get_cryptos():
     except Exception:
         pass
 
-    # دریافت XMR، TON و نرخ واقعی USDT/USD از Kraken
     for sym, kpair in {"XMR": "XXMRZUSD", "TON": "TONUSD", "USDT": "USDTZUSD"}.items():
         if sym not in prices:
             try:
@@ -124,27 +121,26 @@ def get_commodities():
             pass
     return comm
 
-def fmt_usd(v, is_usdt=False):
+def fmt_num(v, is_usdt=False):
     if v <= 0:
         return "—"
     if is_usdt:
-        return f"${v:,.4f}"
+        return f"{v:,.4f}"
     if v >= 1000:
-        return f"${v:,.0f}"
+        return f"{v:,.0f}"
     if v >= 10:
-        return f"${v:,.2f}"
+        return f"{v:,.2f}"
     if v >= 1:
-        return f"${v:,.3f}"
+        return f"{v:,.3f}"
     if v >= 0.01:
-        return f"${v:,.5f}"
-    return f"${v:,.7f}"
+        return f"{v:,.5f}"
+    return f"{v:,.7f}"
 
-def pad_gaps(sym, usd, pct):
+def pad_compact(sym, num_str):
+    # فاصله‌های فشرده و کنترل‌شده تا سطر در صفحه آیفون نشکند
     w_s = sum(0.55 if c in "I1.,$:" else (1.25 if c in "WMG@" else 1.0) for c in sym)
-    w_u = sum(0.55 if c in "I1.,$:" else (1.25 if c in "WMG@" else 1.0) for c in usd)
-    w_p = sum(0.35 if c == "." else 0.68 for c in pct)
-    g1 = "\u2002" + ("\u2006" * max(1, round((7.2 - w_s) * 2)))
-    g2 = "\u2002" + ("\u2006" * max(1, round((13.5 - (w_u + w_p)) * 2)))
+    g1 = "\u2006" * max(1, round((6.5 - w_s) * 2))
+    g2 = "\u2002"
     return g1, g2
 
 def build_post(usdt_irt, cryptos, comms):
@@ -173,7 +169,7 @@ def build_post(usdt_irt, cryptos, comms):
 
         irt_val = usd * usdt_irt if (usd > 0 and usdt_irt > 0) else 0
         irt_fa = to_persian(f"{irt_val:,.0f}" if irt_val >= 10 else f"{irt_val:,.2f}") if irt_val > 0 else "—"
-        usd_str = fmt_usd(usd, is_usdt=(tp == "usdt"))
+        num_str = fmt_num(usd, is_usdt=(tp == "usdt"))
 
         if chg is not None:
             dot = "🟢" if chg >= 0 else "🔴"
@@ -183,8 +179,10 @@ def build_post(usdt_irt, cryptos, comms):
         else:
             dot, pct = "⚪️", to_subscript("0.0")
 
-        g1, g2 = pad_gaps(sym, usd_str, pct)
-        lines.append(f"▫️ {link}{g1}{usd_str}{g2}{pct}{dot}\u2002\u2002\u200eتومن \u200e{irt_fa}")
+        g1, g2 = pad_compact(sym, num_str)
+        # عدد دلاری مونو (قابل کپی با یک لمس) + علامت $ غیرمونو در سمت راست + فاصله کم تا درصد و تومان
+        usd_part = f"<code>{num_str}</code>$" if num_str != "—" else "—"
+        lines.append(f"▫️{link}{g1}{usd_part}{g2}{pct}{dot}\u2006\u200eتومن \u200e{irt_fa}")
 
     if len(tracker) >= 2:
         hi = max(tracker, key=lambda x: x["chg"])
