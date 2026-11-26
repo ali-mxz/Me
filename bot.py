@@ -68,6 +68,7 @@ def get_usdt_irt():
         print(f"Wallex err: {e}")
 
     return 0.0
+
 def get_cryptos():
     prices = {}
     try:
@@ -97,7 +98,6 @@ def get_cryptos():
                 pass
 
     return prices
-
 
 def get_commodities():
     comm = {}
@@ -144,8 +144,7 @@ def build_post(usdt_irt, cryptos, comms):
     now = datetime.now(timezone(timedelta(hours=3, minutes=30)))
     j_str = to_arabic(jdatetime.datetime.fromgregorian(datetime=now).strftime("%Y/%m/%d"))
     lines = [
-        "🦎 <b>Watch Lizard</b>  •  Market Pulse",
-        f"🗓 {now.strftime('%Y-%m-%d')}  |  {now.strftime('%a')} ⏰ {now.strftime('%H:%M')}  |  {j_str} 🌻",
+        f"{now.strftime('%a')}, {now.strftime('%Y-%m-%d')}  🗓  {now.strftime('%H:%M')}  ⏰  {j_str}",
         "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
     ]
     tracker = []
@@ -195,13 +194,21 @@ def tg_call(method, payload):
 if __name__ == "__main__":
     if BOT_TOKEN and CHANNEL_ID:
         u = get_usdt_irt()
-        text = build_post(u, get_cryptos(), get_commodities())
-        tg_call("sendMessage", {
-            "chat_id": CHANNEL_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True
-        })
-        if PINNED_MSG_ID and PINNED_MSG_ID.isdigit():
+        c = get_cryptos()
+        cm = get_commodities()
+        text = build_post(u, c, cm)
+        if PINNED_MSG_ID:
             tg_call("editMessageText", {
-                "chat_id": CHANNEL_ID, "message_id": int(PINNED_MSG_ID),
-                "text": text + "\n📌 Live Board • Auto-updated",
-                "parse_mode": "HTML", "disable_web_page_preview": True
+                "chat_id": CHANNEL_ID,
+                "message_id": int(PINNED_MSG_ID),
+                "text": text,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True
+            })
+        else:
+            tg_call("sendMessage", {
+                "chat_id": CHANNEL_ID,
+                "text": text,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True
             })
