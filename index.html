@@ -6,34 +6,34 @@
   <title>Watch Lizard Live Chart</title>
   <script src="https://telegram.org"></script>
   <style>
-    html, body {
+    html, body, .tradingview-widget-container, #tv-chart {
       margin: 0;
       padding: 0;
       width: 100%;
-      height: 100%;
+      height: 100vh;
       background-color: #131722;
       overflow: hidden;
-    }
-    #tv-chart {
-      width: 100%;
-      height: 100vh;
     }
   </style>
 </head>
 <body>
-  <div id="tv-chart"></div>
-  <script type="text/javascript" src="https://tradingview.com"></script>
-  <script type="text/javascript">
+  <div class="tradingview-widget-container">
+    <div id="tv-chart"></div>
+  </div>
+  <script>
     const tg = window.Telegram.WebApp;
     tg.ready();
     tg.expand();
 
-    // دریافت نماد ارز از لینک تلگرام (مثلاً BINANCE_BTCUSDT -> BINANCE:BTCUSDT)
     let rawParam = tg.initDataUnsafe?.start_param || new URLSearchParams(window.location.search).get("tgWebAppStartParam") || "BINANCE_BTCUSDT";
     let tvSymbol = rawParam.replace("_", ":");
     if (tvSymbol === "COMEX:HG1") tvSymbol = "COMEX:HG1!";
 
-    new TradingView.widget({
+    const script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src = "https://tradingview.com";
+    script.async = true;
+    script.innerHTML = JSON.stringify({
       "autosize": true,
       "symbol": tvSymbol,
       "interval": "15",
@@ -41,13 +41,11 @@
       "theme": "dark",
       "style": "1",
       "locale": "en",
-      "toolbar_bg": "#131722",
-      "enable_publishing": false,
-      "hide_top_toolbar": false,
-      "hide_legend": false,
-      "save_image": false,
-      "container_id": "tv-chart"
+      "allow_symbol_change": true,
+      "calendar": false,
+      "support_host": "https://tradingview.com"
     });
+    document.getElementById("tv-chart").appendChild(script);
   </script>
 </body>
 </html>
