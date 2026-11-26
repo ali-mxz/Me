@@ -82,7 +82,8 @@ def get_cryptos():
     except Exception:
         pass
 
-    for sym, kpair in {"XMR": "XXMRZUSD", "TON": "TONUSD"}.items():
+    # دریافت XMR، TON و نرخ واقعی USDT/USD از Kraken
+    for sym, kpair in {"XMR": "XXMRZUSD", "TON": "TONUSD", "USDT": "USDTZUSD"}.items():
         if sym not in prices:
             try:
                 d = fetch_json("api.kraken" + ".com", "/0/public/Ticker?pair=" + kpair)
@@ -123,9 +124,11 @@ def get_commodities():
             pass
     return comm
 
-def fmt_usd(v):
+def fmt_usd(v, is_usdt=False):
     if v <= 0:
         return "—"
+    if is_usdt:
+        return f"${v:,.4f}"
     if v >= 1000:
         return f"${v:,.0f}"
     if v >= 10:
@@ -158,7 +161,11 @@ def build_post(usdt_irt, cryptos, comms):
         link = f'<a href="{tv_url}">{sym}</a>'
         usd, chg = 0.0, None
         if tp == "usdt":
-            usd = 1.0
+            if "USDT" in cryptos:
+                usd = cryptos["USDT"]["price"]
+                chg = cryptos["USDT"]["chg"]
+            else:
+                usd = 1.0
         elif tp == "crypto" and it["lookup"] in cryptos:
             usd, chg = cryptos[it["lookup"]]["price"], cryptos[it["lookup"]]["chg"]
         elif tp == "commodity" and sym in comms:
@@ -166,12 +173,13 @@ def build_post(usdt_irt, cryptos, comms):
 
         irt_val = usd * usdt_irt if (usd > 0 and usdt_irt > 0) else 0
         irt_fa = to_persian(f"{irt_val:,.0f}" if irt_val >= 10 else f"{irt_val:,.2f}") if irt_val > 0 else "—"
-        usd_str = "$1.00" if tp == "usdt" else fmt_usd(usd)
+        usd_str = fmt_usd(usd, is_usdt=(tp == "usdt"))
 
         if chg is not None:
             dot = "🟢" if chg >= 0 else "🔴"
             pct = to_subscript(f"{'+' if chg > 0 else ''}{chg:.1f}")
-            tracker.append({"sym": sym, "chg": chg})
+            if tp != "usdt":
+                tracker.append({"sym": sym, "chg": chg})
         else:
             dot, pct = "⚪️", to_subscript("0.0")
 
