@@ -197,8 +197,16 @@ def tg_call(method, payload):
     req = urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"), headers={"Content-Type": "application/json"}
     )
-    with urllib.request.urlopen(req, timeout=15) as r:
-        return json.loads(r.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="ignore")
+        print(f"Telegram API Error ({e.code}): {err_body}")
+        return None
+    except Exception as e:
+        print(f"Network/TG Error: {e}")
+        return None
 
 if __name__ == "__main__":
     if BOT_TOKEN and CHANNEL_ID:
