@@ -50,7 +50,6 @@ def fetch_json(host, path):
         return json.loads(r.read().decode("utf-8"))
 
 def get_usdt_irt():
-    # همان منبع سالم ساعت 05:31 صبح امروز (نوبیتکس)
     try:
         d = fetch_json("api.nobitex" + ".ir", "/market/stats?srcCurrency=usdt&dstCurrency=rls")
         p = float(d["stats"]["usdt-rls"]["latest"]) / 10.0
@@ -60,7 +59,6 @@ def get_usdt_irt():
     except Exception as e:
         print(f"Nobitex err: {e}")
 
-    # پشتیبان دوم: صرافی والکس (همان نسخه صبح)
     try:
         d = fetch_json("api.wallex" + ".ir", "/v1/markets")
         p = float(d["result"]["symbols"]["USDTTMN"]["stats"]["lastPrice"])
@@ -138,11 +136,12 @@ def fmt_usd(v):
         return f"${v:,.5f}"
     return f"${v:,.7f}"
 
-def pad_gaps(sym, usd):
+def pad_gaps(sym, usd, pct):
     w_s = sum(0.55 if c in "I1.,$:" else (1.25 if c in "WMG@" else 1.0) for c in sym)
     w_u = sum(0.55 if c in "I1.,$:" else (1.25 if c in "WMG@" else 1.0) for c in usd)
+    w_p = sum(0.35 if c == "." else 0.68 for c in pct)
     g1 = "\u2002" + ("\u2006" * max(1, round((7.2 - w_s) * 2)))
-    g2 = "\u2002" + ("\u2006" * max(1, round((10.8 - w_u) * 2)))
+    g2 = "\u2002" + ("\u2006" * max(1, round((13.5 - (w_u + w_p)) * 2)))
     return g1, g2
 
 def build_post(usdt_irt, cryptos, comms):
@@ -168,7 +167,6 @@ def build_post(usdt_irt, cryptos, comms):
         irt_val = usd * usdt_irt if (usd > 0 and usdt_irt > 0) else 0
         irt_fa = to_persian(f"{irt_val:,.0f}" if irt_val >= 10 else f"{irt_val:,.2f}") if irt_val > 0 else "—"
         usd_str = "$1.00" if tp == "usdt" else fmt_usd(usd)
-        g1, g2 = pad_gaps(sym, usd_str)
 
         if chg is not None:
             dot = "🟢" if chg >= 0 else "🔴"
@@ -177,7 +175,7 @@ def build_post(usdt_irt, cryptos, comms):
         else:
             dot, pct = "⚪️", to_subscript("0.0")
 
-        # تثبیت قطعی «تومن» در سمت چپِ عدد فارسی
+        g1, g2 = pad_gaps(sym, usd_str, pct)
         lines.append(f"▫️ {link}{g1}{usd_str}{g2}{pct}{dot}\u2002\u2002\u200eتومن \u200e{irt_fa}")
 
     if len(tracker) >= 2:
