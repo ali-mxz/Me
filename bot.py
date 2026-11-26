@@ -195,8 +195,10 @@ def build_post(usdt_irt, cryptos, comms, with_seconds=True):
         usd_part = f"<code>{num_str}</code>$" if num_str != "—" else "—"
 
         # برای اعداد میلیاردی (مثل BTC) فاصله بین «تومن» و عدد را صفر می‌کنیم تا در آیفون نشکند
-        irt_sep = "\u200a" if irt_val >= 1_000_000_000 else "\u2009"
-        pre_toman = "" if irt_val >= 1_000_000_000 else "\u2006"
+
+                irt_sep = "\u200a" if irt_val >= 100_000_000 else "\u2009"
+        pre_toman = "" if irt_val >= 100_000_000 else "\u2006"
+
 
         lines.append(f"▫️{link}{g1}{usd_part}{g2}{pct}{dot}{pre_toman}\u200eتومن{irt_sep}\u200e{irt_display}")
 
