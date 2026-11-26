@@ -178,9 +178,7 @@ def build_post(usdt_irt, cryptos, comms):
     if len(tracker) >= 2:
         hi = max(tracker, key=lambda x: x["chg"])
         lo = min(tracker, key=lambda x: x["chg"])
-        lines.append("<blockquote expandable>📊 <b>24h Watchlist Summary</b>")
-        lines.append(f"▲ Top Gainer: {hi['sym']} ({hi['chg']:+.2f}%)")
-        lines.append(f"▼ Top Loser: {lo['sym']} ({lo['chg']:+.2f}%)</blockquote>")
+        lines.append(f"<blockquote>📊 24h: 🚀 {hi['sym']} {hi['chg']:+.1f}% | 🔻 {lo['sym']} {lo['chg']:+.1f}%</blockquote>")
     return "\n".join(lines)
 
 def tg_call(method, payload):
