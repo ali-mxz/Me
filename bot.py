@@ -146,7 +146,7 @@ def build_post(usdt_irt, cryptos, comms):
     lines = [
         "🦎 <b>Watch Lizard</b>  •  Market Pulse",
         f"🗓 {now.strftime('%Y-%m-%d')}  |  {now.strftime('%a')} ⏰ {now.strftime('%H:%M')}  |  {j_str} 🌻",
-        "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
+        "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
     ]
     tracker = []
     for it in WATCHLIST:
