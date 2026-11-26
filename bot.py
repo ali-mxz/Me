@@ -68,54 +68,34 @@ def get_usdt_irt():
         print(f"Wallex err: {e}")
 
     return 0.0
-def get_binance_data():
-    """Return Binance 24h prices and changes for available USDT spot pairs."""
+def get_cryptos():
     prices = {}
     try:
-        data = fetch_json("api.binance" + ".com", "/api/v3/ticker/24hr")
-        for item in data:
-            pair = item.get("symbol", "")
-            if pair.endswith("USDT"):
-                sym = pair[:-4]
-                last = float(item.get("lastPrice", 0) or 0)
-                chg = float(item.get("priceChangePercent", 0) or 0)
+        for item in fetch_json("api.gateio" + ".ws", "/api/v4/spot/tickers"):
+            pair = item.get("currency_pair", "")
+            if pair.endswith("_USDT"):
+                last = float(item.get("last", 0))
                 if last > 0:
-                    prices[sym] = {"price": last, "chg": chg}
-    except Exception as e:
-        print(f"Binance err: {e}")
-    return prices
+                    prices[pair[:-5]] = {"price": last, "chg": float(item.get("change_percentage", 0))}
+    except Exception:
+        pass
 
-
-def get_usdt_usd(binance_data):
-    """Estimate USDT/USD from Binance USDCUSDT (inverse quote)."""
-    try:
-        usdc_usdt = float(binance_data.get("USDC", {}).get("price", 0))
-        if usdc_usdt > 0:
-            rate = 1.0 / usdc_usdt
-            if 0.90 < rate < 1.10:
-                print(f"USDT/USD loaded from Binance: {rate}")
-                return rate
-    except Exception as e:
-        print(f"USDT/USD err: {e}")
-    return 1.0
-
-
-def get_cryptos(binance_data=None):
-    prices = dict(binance_data or {})
-    # Kraken fallback only for assets not available as Binance USDT spot pairs.
     for sym, kpair in {"XMR": "XXMRZUSD", "TON": "TONUSD"}.items():
         if sym not in prices:
             try:
                 d = fetch_json("api.kraken" + ".com", "/0/public/Ticker?pair=" + kpair)
                 for _, info in d.get("result", {}).items():
-                    last = float(info.get("c", [0])[0])
-                    opening = float(info.get("o", 0))
-                    if last > 0:
-                        chg = ((last - opening) / opening * 100.0) if opening > 0 else 0.0
-                        prices[sym] = {"price": last, "chg": chg, "quote": "USD"}
-                    break
-            except Exception as e:
-                print(f"Kraken {sym} err: {e}")
+                    c_list = info.get("c", [])
+                    o_val = float(info.get("o", 0))
+                    for c_str in c_list:
+                        last = float(c_str)
+                        if last > 0:
+                            chg = ((last - o_val) / o_val * 100.0) if o_val > 0 else 0.0
+                            prices[sym] = {"price": last, "chg": chg}
+                        break
+            except Exception:
+                pass
+
     return prices
 
 
@@ -142,42 +122,32 @@ def get_commodities():
             pass
     return comm
 
-def fmt_usd(v, sym=""):
+def fmt_usd(v):
     if v <= 0:
         return "—"
-    if sym == "NOT":
-        return f"{v:,.7f}"
     if v >= 1000:
-        return f"{v:,.0f}"
+        return f"${v:,.0f}"
     if v >= 10:
-        return f"{v:,.2f}"
+        return f"${v:,.2f}"
     if v >= 1:
-        return f"{v:,.3f}"
-    return f"{v:,.5f}"
+        return f"${v:,.3f}"
+    return f"${v:,.5f}"
 
+def pad_gaps(sym, usd):
+    w_s = sum(0.55 if c in "I1.,$:" else (1.25 if c in "WMG@" else 1.0) for c in sym)
+    w_u = sum(0.55 if c in "I1.,$:" else (1.25 if c in "WMG@" else 1.0) for c in usd)
+    g1 = "\u2002" + ("\u2006" * max(1, round((7.2 - w_s) * 2)))
+    g2 = "\u2002" + ("\u2006" * max(1, round((10.8 - w_u) * 2)))
+    return g1, g2
 
-def subscript_pct(value):
-    # Compact percentage without %; all digits use Unicode subscript forms.
-    raw = f"{abs(value):.1f}"
-    digits = str.maketrans("0123456789.-", "₀₁₂₃₄₅₆₇₈₉.₋")
-    sign = "₊" if value >= 0 else "₋"
-    return sign + raw.translate(digits)
-
-
-def align_fa_amount(value):
-    text = to_persian(f"{value:,.0f}" if value >= 10 else f"{value:,.2f}") if value > 0 else "—"
-    # Figure spaces keep the final (ones) digit in a consistent right-hand column.
-    visible_len = len(text)
-    return (" " * max(0, 15 - visible_len)) + text
-
-
-def build_post(usdt_irt, cryptos, comms, usdt_usd=1.0):
+def build_post(usdt_irt, cryptos, comms):
     now = datetime.now(timezone(timedelta(hours=3, minutes=30)))
     j_str = to_arabic(jdatetime.datetime.fromgregorian(datetime=now).strftime("%Y/%m/%d"))
-    header = f"{now.strftime('%a, %Y-%m-%d')}  🗓  {now.strftime('%H:%M')}  ⏰  {j_str}"
-    # get_usdt_irt is the local USDT rate; derive the free USD/IRT rate from USDT/USD.
-    usd_irt = (usdt_irt / usdt_usd) if (usdt_irt > 0 and usdt_usd > 0) else 0.0
-    lines = [header, "┄" * 32]
+    lines = [
+        "🦎 <b>Watch Lizard</b>  •  Market Pulse",
+        f"🗓 {now.strftime('%Y-%m-%d')}  |  {now.strftime('%a')} ⏰ {now.strftime('%H:%M')}  |  {j_str} 🌻",
+        "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
+    ]
     tracker = []
     for it in WATCHLIST:
         sym, tp = it["symbol"], it["type"]
@@ -185,40 +155,34 @@ def build_post(usdt_irt, cryptos, comms, usdt_usd=1.0):
         link = f'<a href="{tv_url}">{sym}</a>'
         usd, chg = 0.0, None
         if tp == "usdt":
-            usd = usdt_usd
-            chg = None
+            usd = 1.0
         elif tp == "crypto" and it["lookup"] in cryptos:
-            quote = cryptos[it["lookup"]].get("quote", "USDT")
-            factor = 1.0 if quote == "USD" else usdt_usd
-            usd, chg = cryptos[it["lookup"]]["price"] * factor, cryptos[it["lookup"]]["chg"]
+            usd, chg = cryptos[it["lookup"]]["price"], cryptos[it["lookup"]]["chg"]
         elif tp == "commodity" and sym in comms:
             usd, chg = comms[sym]["price"], comms[sym]["chg"]
 
-        irt_val = usd * usd_irt if (usd > 0 and usd_irt > 0) else 0
-        irt_fa = align_fa_amount(irt_val)
-        usd_digits = fmt_usd(usd, sym)
-        # Keep the dollar sign outside the monospace digits.
-        usd_str = f"$<code>{usd_digits}</code>"
+        irt_val = usd * usdt_irt if (usd > 0 and usdt_irt > 0) else 0
+        irt_fa = to_persian(f"{irt_val:,.0f}" if irt_val >= 10 else f"{irt_val:,.2f}") if irt_val > 0 else "—"
+        usd_str = "$1.00" if tp == "usdt" else fmt_usd(usd)
+        g1, g2 = pad_gaps(sym, usd_str)
 
         if chg is not None:
             dot = "🟢" if chg >= 0 else "🔴"
-            compact = subscript_pct(chg)
+            pct = f"{'+' if chg > 0 else ''}{chg:.1f}%"
             tracker.append({"sym": sym, "chg": chg})
         else:
-            dot, compact = "⚪️", "₀.₀"
+            dot, pct = "⚪️", "0.0%"
 
-        # Fixed symbol and price columns keep every status circle on the same vertical axis.
-        symbol_pad = " " * max(1, 7 - len(sym))
-        price_digits = f"{usd_digits:>10}"
-        usd_str = "$" + f"<code>{price_digits}</code>"
-        lines.append(f"▫️ {link}{symbol_pad}{usd_str} {dot}{compact} | تومن {irt_fa}")
+        # تثبیت قطعی «تومن» در سمت چپِ عدد فارسی
+        lines.append(f"▫️ {link}{g1}{usd_str}{g2}{dot} {pct}\u2002|\u2002\u200eتومن \u200e{irt_fa}")
 
     if len(tracker) >= 2:
         hi = max(tracker, key=lambda x: x["chg"])
         lo = min(tracker, key=lambda x: x["chg"])
-        lines.append(f"📊 24h: 🚀 {hi['sym']} {hi['chg']:+.1f}% | 🔻 {lo['sym']} {lo['chg']:+.1f}%")
+        lines.append("<blockquote expandable>📊 <b>24h Watchlist Summary</b>")
+        lines.append(f"▲ Top Gainer: {hi['sym']} ({hi['chg']:+.2f}%)")
+        lines.append(f"▼ Top Loser: {lo['sym']} ({lo['chg']:+.2f}%)</blockquote>")
     return "\n".join(lines)
-
 
 def tg_call(method, payload):
     url = "https" + "://api.telegram" + ".org/bot" + BOT_TOKEN + "/" + method
@@ -231,10 +195,7 @@ def tg_call(method, payload):
 if __name__ == "__main__":
     if BOT_TOKEN and CHANNEL_ID:
         u = get_usdt_irt()
-        binance_data = get_binance_data()
-        usdt_usd = get_usdt_usd(binance_data)
-        cryptos = get_cryptos(binance_data)
-        text = build_post(u, cryptos, get_commodities(), usdt_usd)
+        text = build_post(u, get_cryptos(), get_commodities())
         tg_call("sendMessage", {
             "chat_id": CHANNEL_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True
         })
