@@ -141,7 +141,7 @@ def fmt_num(v, is_usdt=False):
 def pad_compact(sym):
     w_s = sum(0.55 if c in "I1.,$:" else (1.25 if c in "WMG@" else 1.0) for c in sym)
     g1 = "\u2006" * max(1, round((5.0 - w_s) * 2))
-    g2 = "\u2002"
+    g2 = "\u2006"
     return g1, g2
 
 def build_post(usdt_irt, cryptos, comms, with_seconds=True):
