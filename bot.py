@@ -7,6 +7,7 @@ import jdatetime
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 PINNED_MSG_ID = os.environ.get("PINNED_MSG_ID", "").strip()
+MINI_APP_BASE = "https://t.me"
 
 WATCHLIST = [
     {"symbol": "USDT", "type": "usdt", "tv": "CRYPTO:USDTUSD"},
@@ -136,11 +137,10 @@ def fmt_num(v, is_usdt=False):
         return f"{v:,.5f}"
     return f"{v:,.7f}"
 
-def pad_compact(sym, num_str):
-    # فاصله‌های فشرده و کنترل‌شده تا سطر در صفحه آیفون نشکند
+def pad_compact(sym):
     w_s = sum(0.55 if c in "I1.,$:" else (1.25 if c in "WMG@" else 1.0) for c in sym)
-    g1 = "\u2006" * max(1, round((6.5 - w_s) * 2))
-    g2 = "\u2002"
+    g1 = "\u2006" * max(1, round((5.3 - w_s) * 2))
+    g2 = "\u2002\u2006"
     return g1, g2
 
 def build_post(usdt_irt, cryptos, comms):
@@ -153,8 +153,11 @@ def build_post(usdt_irt, cryptos, comms):
     tracker = []
     for it in WATCHLIST:
         sym, tp = it["symbol"], it["type"]
-        tv_url = "https" + "://www.tradingview" + ".com/chart/?symbol=" + it["tv"]
-        link = f'<a href="{tv_url}">{sym}</a>'
+        # تبدیل کاراکترهای غیرمجاز در پارامتر startapp (مثل : و !) به شکل استاندارد
+        safe_tv = it["tv"].replace(":", "_").replace("!", "")
+        app_url = f"{MINI_APP_BASE}{safe_tv}"
+        link = f'<a href="{app_url}">{sym}</a>'
+
         usd, chg = 0.0, None
         if tp == "usdt":
             if "USDT" in cryptos:
@@ -179,10 +182,9 @@ def build_post(usdt_irt, cryptos, comms):
         else:
             dot, pct = "⚪️", to_subscript("0.0")
 
-        g1, g2 = pad_compact(sym, num_str)
-        # عدد دلاری مونو (قابل کپی با یک لمس) + علامت $ غیرمونو در سمت راست + فاصله کم تا درصد و تومان
+        g1, g2 = pad_compact(sym)
         usd_part = f"<code>{num_str}</code>$" if num_str != "—" else "—"
-        lines.append(f"▫️{link}{g1}{usd_part}{g2}{pct}{dot}\u2006\u200eتومن \u200e{irt_fa}")
+        lines.append(f"▫️{link}{g1}{usd_part}{g2}{pct}{dot}\u2002\u200eتومن\u2009\u200e{irt_fa}")
 
     if len(tracker) >= 2:
         hi = max(tracker, key=lambda x: x["chg"])
