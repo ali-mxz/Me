@@ -8,7 +8,7 @@ import jdatetime
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 PINNED_MSG_ID = os.environ.get("PINNED_MSG_ID", "").strip()
-MINI_APP_BASE = "https://t.me"
+MINI_APP_BASE = "https://t.me/watchlizardbot/chart?startapp="
 
 WATCHLIST = [
     {"symbol": "USDT", "type": "usdt", "tv": "CRYPTO:USDTUSD"},
