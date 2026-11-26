@@ -134,7 +134,9 @@ def fmt_usd(v):
         return f"${v:,.2f}"
     if v >= 1:
         return f"${v:,.3f}"
-    return f"${v:,.5f}"
+    if v >= 0.01:
+        return f"${v:,.5f}"
+    return f"${v:,.7f}"
 
 def pad_gaps(sym, usd):
     w_s = sum(0.55 if c in "I1.,$:" else (1.25 if c in "WMG@" else 1.0) for c in sym)
