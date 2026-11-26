@@ -37,6 +37,9 @@ def to_arabic(s):
 def to_persian(s):
     return s.translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
 
+def to_subscript(s):
+    return s.translate(str.maketrans("0123456789+-", "₀₁₂₃₄₅₆₇₈₉₊₋"))
+
 def fetch_json(host, path):
     scheme = "https" + "://"
     req = urllib.request.Request(
@@ -167,13 +170,13 @@ def build_post(usdt_irt, cryptos, comms):
 
         if chg is not None:
             dot = "🟢" if chg >= 0 else "🔴"
-            pct = f"{'+' if chg > 0 else ''}{chg:.1f}%"
+            pct = to_subscript(f"{'+' if chg > 0 else ''}{chg:.1f}")
             tracker.append({"sym": sym, "chg": chg})
         else:
-            dot, pct = "⚪️", "0.0%"
+            dot, pct = "⚪️", to_subscript("0.0")
 
         # تثبیت قطعی «تومن» در سمت چپِ عدد فارسی
-        lines.append(f"▫️ {link}{g1}{usd_str}{g2}{dot} {pct}\u2002|\u2002\u200eتومن \u200e{irt_fa}")
+        lines.append(f"▫️ {link}{g1}{usd_str}{g2}{dot}{pct}\u2002|\u2002\u200eتومن \u200e{irt_fa}")
 
     if len(tracker) >= 2:
         hi = max(tracker, key=lambda x: x["chg"])
