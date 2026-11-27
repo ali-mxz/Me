@@ -293,11 +293,6 @@ def pad_compact(sym):
     g1 = "\u2006" * max(1, round((5.0 - w_s) * 2))
     g2 = "\u2006"
     return g1, g2
-Use code with caution.
-
-بسته ۲ از ۲ (از تابع build_post تا انتهای فایل)
-
-python
 def build_post(usdt_irt, cryptos, comms, with_seconds=True):
     now = datetime.now(timezone(timedelta(hours=3, minutes=30)))
     j_str = to_arabic(jdatetime.datetime.fromgregorian(datetime=now).strftime("%Y/%m/%d"))
