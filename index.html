@@ -135,7 +135,7 @@
       };
       const fsym = symMap[key] || key;
       try {
-        const url = `https://cryptocompare.com{fsym}&tsym=USD&limit=70&aggregate=15`;
+        const url = `/api/chart?sym=${key}`;
         const r = await fetch(url);
         const j = await r.json();
         const list = j?.Data?.Data;
