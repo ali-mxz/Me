@@ -189,8 +189,8 @@ def build_post(usdt_irt, cryptos, comms):
         # فاصله تنگ‌تر و متعادل بین دایره رنگی و «تومن» برای جلوگیری از شکستن خط در iOS
         irt_sep = "\u200a" if irt_val >= 100_000_000 else "\u2009"
         pre_toman = "\u2006"
-        lines.append(f"▫️{link}{g1}{usd_part}{g2}{pct}{dot}{pre_toman}\u200eتومن{irt_sep}\u200e{irt_display}")
-
+                g2_use = "\u200a" if irt_val >= 1_000_000_000 else g2
+        lines.append(f"▫️{link}{g1}{usd_part}{g2_use}{pct}{dot}{pre_toman}\u200eتومن{irt_sep}\u200e{irt_display}")
     if len(tracker) >= 2:
         hi = max(tracker, key=lambda x: x["chg"])
         lo = min(tracker, key=lambda x: x["chg"])
