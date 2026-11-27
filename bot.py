@@ -211,56 +211,31 @@ def tg_call(method, payload):
 
 if __name__ == "__main__":
     if BOT_TOKEN and CHANNEL_ID:
-        now_ir = datetime.now(timezone(timedelta(hours=3, minutes=30)))
         u = get_usdt_irt()
         c = get_cryptos()
         cm = get_commodities()
 
-        chat_info = tg_call("getChat", {"chat_id": CHANNEL_ID})
-        pinned_id = None
-        if chat_info and chat_info.get("ok"):
-            pinned_msg = chat_info.get("result", {}).get("pinned_message")
-            if pinned_msg:
-                pinned_id = pinned_msg.get("message_id")
+        # 1. ارسال پست جدید در انتهای کانال (بدون ثانیه، منظم و تمیز)
+        post_text = build_post(u, c, cm, with_seconds=False)
+        sent = tg_call("sendMessage", {
+            "chat_id": CHANNEL_ID,
+            "text": post_text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True
+        })
 
-        if now_ir.minute % 5 == 0 or not pinned_id:
-            if pinned_id:
-                archive_text = build_post(u, c, cm, with_seconds=False)
-                tg_call("editMessageText", {
-                    "chat_id": CHANNEL_ID,
-                    "message_id": pinned_id,
-                    "text": archive_text,
-                    "parse_mode": "HTML",
-                    "disable_web_page_preview": True
-                })
-                tg_call("unpinChatMessage", {
-                    "chat_id": CHANNEL_ID,
-                    "message_id": pinned_id
-                })
-
-            live_text = build_post(u, c, cm, with_seconds=True)
-            sent = tg_call("sendMessage", {
+        # 2. آن‌پین کردن همه پین‌های قبلی و پین کردن همین آخرین پست + حذف پیام سیستمی پین
+        if sent and sent.get("ok"):
+            new_msg_id = sent["result"]["message_id"]
+            tg_call("unpinAllChatMessages", {"chat_id": CHANNEL_ID})
+            pin_res = tg_call("pinChatMessage", {
                 "chat_id": CHANNEL_ID,
-                "text": live_text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": True
+                "message_id": new_msg_id,
+                "disable_notification": True
             })
-            if sent and sent.get("ok"):
-                pinned_id = sent["result"]["message_id"]
-                tg_call("pinChatMessage", {
+            # حذف پیام سیستمی "pinned a message" برای تمیز ماندن کانال
+            if pin_res and pin_res.get("ok"):
+                tg_call("deleteMessage", {
                     "chat_id": CHANNEL_ID,
-                    "message_id": pinned_id,
-                    "disable_notification": True
-                })
-
-        if pinned_id:
-            for _ in range(9):
-                time.sleep(5 - (time.time() % 5))
-                live_text = build_post(u, c, cm, with_seconds=True)
-                tg_call("editMessageText", {
-                    "chat_id": CHANNEL_ID,
-                    "message_id": pinned_id,
-                    "text": live_text,
-                    "parse_mode": "HTML",
-                    "disable_web_page_preview": True
+                    "message_id": new_msg_id + 1
                 })
