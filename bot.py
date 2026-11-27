@@ -179,6 +179,9 @@ def build_post(usdt_irt, cryptos, comms):
             dot, pct = "⚪️", to_subscript("0.0")
 
         g1, g2 = pad_compact(sym)
+        if irt_val >= 10_000_000_000:
+            g1 = "\u2009"
+
         if num_str == "—":
             usd_part = "—"
         elif tp == "usdt":
