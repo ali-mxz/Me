@@ -130,12 +130,10 @@ def fmt_num(v, is_usdt=False):
     if v >= 0.01:
         return f"{v:,.5f}"
     return f"{v:,.7f}"
-
 def pad_compact(sym):
-    # افزایش فاصله برای ارزهای میانی و کوتاه، و حفظ فشردگی برای سطرهای میلیاردی
     w_s = sum(0.5 if c in "I1" else (1.05 if c in "WMGO" else 0.85) for c in sym)
-    g1 = "\u2002" + ("\u2006" * max(1, round((5.2 - w_s) * 2)))
-    g2 = "\u2002"
+    g1 = "\u2006" * max(1, round((5.0 - w_s) * 2))
+    g2 = "\u2006" * 2
     return g1, g2
 
 def build_post(usdt_irt, cryptos, comms):
@@ -188,8 +186,9 @@ def build_post(usdt_irt, cryptos, comms):
         else:
             usd_part = f"$<code>{num_str}</code>"
 
+        # فاصله تنگ‌تر و متعادل بین دایره رنگی و «تومن» برای جلوگیری از شکستن خط در iOS
         irt_sep = "\u200a" if irt_val >= 100_000_000 else "\u2009"
-        pre_toman = "\u2006" if irt_val >= 100_000_000 else "\u2002"
+        pre_toman = "\u2006"
         lines.append(f"▫️{link}{g1}{usd_part}{g2}{pct}{dot}{pre_toman}\u200eتومن{irt_sep}\u200e{irt_display}")
 
     if len(tracker) >= 2:
@@ -198,6 +197,7 @@ def build_post(usdt_irt, cryptos, comms):
         lines.append("")
         lines.append(f"<blockquote>📊 24h: 🚀 {hi['sym']} {hi['chg']:+.1f}% | 🔻 {lo['sym']} {lo['chg']:+.1f}%</blockquote>")
     return "\n".join(lines)
+
 
 def tg_call(method, payload):
     url = "https" + "://api.telegram" + ".org/bot" + BOT_TOKEN + "/" + method
