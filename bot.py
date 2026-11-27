@@ -1,6 +1,5 @@
 import os
 import json
-import time
 import urllib.request
 from datetime import datetime, timezone, timedelta
 import jdatetime
@@ -133,17 +132,17 @@ def fmt_num(v, is_usdt=False):
     return f"{v:,.7f}"
 
 def pad_compact(sym):
-    w_s = sum(0.55 if c in "I1.,$:" else (1.25 if c in "WMG@" else 1.0) for c in sym)
-    g1 = "\u2006" * max(1, round((5.0 - w_s) * 2))
-    g2 = "\u2006"
+    # افزایش فاصله برای ارزهای میانی و کوتاه، و حفظ فشردگی برای سطرهای میلیاردی
+    w_s = sum(0.5 if c in "I1" else (1.05 if c in "WMGO" else 0.85) for c in sym)
+    g1 = "\u2002" + ("\u2006" * max(1, round((5.2 - w_s) * 2)))
+    g2 = "\u2002"
     return g1, g2
 
-def build_post(usdt_irt, cryptos, comms, with_seconds=True):
+def build_post(usdt_irt, cryptos, comms):
     now = datetime.now(timezone(timedelta(hours=3, minutes=30)))
     j_str = to_arabic(jdatetime.datetime.fromgregorian(datetime=now).strftime("%Y/%m/%d"))
-    time_fmt = "%H:%M:%S" if with_seconds else "%H:%M"
     lines = [
-        f"{now.strftime('%a')}, {now.strftime('%Y-%m-%d')} 🗓 {now.strftime(time_fmt)} ⏰ {j_str}",
+        f"{now.strftime('%a')}, {now.strftime('%Y-%m-%d')}  🗓  {now.strftime('%H:%M')}  ⏰  {j_str}",
         "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
     ]
     tracker = []
@@ -152,6 +151,7 @@ def build_post(usdt_irt, cryptos, comms, with_seconds=True):
         safe_tv = it["tv"].replace(":", "_").replace("!", "")
         app_url = f"{MINI_APP_BASE}{safe_tv}"
         link = f'<a href="{app_url}">{sym}</a>'
+
         usd, chg = 0.0, None
         if tp == "usdt":
             if "USDT" in cryptos:
@@ -181,9 +181,15 @@ def build_post(usdt_irt, cryptos, comms, with_seconds=True):
             dot, pct = "⚪️", to_subscript("0.0")
 
         g1, g2 = pad_compact(sym)
-        usd_part = f"<code>{num_str}</code>$" if num_str != "—" else "—"
+        if num_str == "—":
+            usd_part = "—"
+        elif tp == "usdt":
+            usd_part = f"${num_str}"
+        else:
+            usd_part = f"$<code>{num_str}</code>"
+
         irt_sep = "\u200a" if irt_val >= 100_000_000 else "\u2009"
-        pre_toman = "" if irt_val >= 100_000_000 else "\u2006"
+        pre_toman = "\u2006" if irt_val >= 100_000_000 else "\u2002"
         lines.append(f"▫️{link}{g1}{usd_part}{g2}{pct}{dot}{pre_toman}\u200eتومن{irt_sep}\u200e{irt_display}")
 
     if len(tracker) >= 2:
@@ -214,28 +220,10 @@ if __name__ == "__main__":
         u = get_usdt_irt()
         c = get_cryptos()
         cm = get_commodities()
-
-        # 1. ارسال پست جدید در انتهای کانال (بدون ثانیه، منظم و تمیز)
-        post_text = build_post(u, c, cm, with_seconds=False)
-        sent = tg_call("sendMessage", {
+        post_text = build_post(u, c, cm)
+        tg_call("sendMessage", {
             "chat_id": CHANNEL_ID,
             "text": post_text,
             "parse_mode": "HTML",
             "disable_web_page_preview": True
         })
-
-        # 2. آن‌پین کردن همه پین‌های قبلی و پین کردن همین آخرین پست + حذف پیام سیستمی پین
-        if sent and sent.get("ok"):
-            new_msg_id = sent["result"]["message_id"]
-            tg_call("unpinAllChatMessages", {"chat_id": CHANNEL_ID})
-            pin_res = tg_call("pinChatMessage", {
-                "chat_id": CHANNEL_ID,
-                "message_id": new_msg_id,
-                "disable_notification": True
-            })
-            # حذف پیام سیستمی "pinned a message" برای تمیز ماندن کانال
-            if pin_res and pin_res.get("ok"):
-                tg_call("deleteMessage", {
-                    "chat_id": CHANNEL_ID,
-                    "message_id": new_msg_id + 1
-                })
