@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Watch Lizard Live Chart</title>
   <script src="https://telegram.org"></script>
-  <script src="https://unpkg.com"></script>
+  <script src="https://jsdelivr.net"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -37,6 +37,7 @@
       font-size: 13px;
       color: #787b86;
       text-align: center;
+      padding: 0 20px;
     }
   </style>
 </head>
@@ -56,7 +57,7 @@
     let rawParam = tg.initDataUnsafe?.start_param || new URLSearchParams(window.location.search).get("tgWebAppStartParam") || "BINANCE_BTCUSDT";
     let baseKey = rawParam.split("_").pop().replace("USDT", "").replace("USD", "");
     let titleSym = baseKey === "TON" ? "GRAM (TON)" : baseKey;
-    document.getElementById("sym-title").innerText = "🦎 " + titleSym + " / USD (15m)";
+    document.getElementById("sym-title").innerText = "🦎 " + titleSym + " / USDT (15m)";
 
     const chart = LightweightCharts.createChart(document.getElementById("chart"), {
       layout: { background: { color: "#131722" }, textColor: "#d1d4dc" },
@@ -74,37 +75,46 @@
       wickDownColor: "#ef5350"
     });
 
-    const krakenMap = {
-      "BTC": "XBTUSD", "ETH": "ETHUSD", "XRP": "XRPUSD", "SOL": "SOLUSD",
-      "PAXG": "PAXGUSD", "USDT": "USDTZUSD", "TON": "TONUSD", "DOGE": "XDGUSD",
-      "LINK": "LINKUSD", "XMR": "XMRUSD", "ADA": "ADAUSD", "ZEC": "ZECUSD",
-      "SUI": "SUIUSD", "LTC": "LTCUSD", "TRX": "TRXUSD"
+    // نگاشت نمادهای خاص به بازارهای موجود در نوبیتکس
+    const nobitexMap = {
+      "USDT": "USDTIRT",
+      "SILVER": "PAXGUSDT",
+      "HG1": "BTCUSDT",
+      "USOIL": "BTCUSDT"
     };
 
-    const pair = krakenMap[baseKey] || "XBTUSD";
+    const symbol = nobitexMap[baseKey] || (baseKey + "USDT");
+    if (baseKey === "USDT") {
+      document.getElementById("sym-title").innerText = "🦎 USDT / IRT (15m)";
+    } else if (["SILVER", "HG1", "USOIL"].includes(baseKey)) {
+      document.getElementById("status").innerText = "Commodity chart not supported on Nobitex API.";
+    }
 
-    fetch("https://kraken.com" + pair + "&interval=15")
-      .then(r => r.json())
-      .then(data => {
-        const res = data.result;
-        const key = Object.keys(res).find(k => k !== "last");
-        const rawList = res[key].slice(-120);
-        const candles = rawList.map(c => ({
-          time: Number(c[0]) + 12600,
-          open: parseFloat(c[1]),
-          high: parseFloat(c[2]),
-          low: parseFloat(c[3]),
-          close: parseFloat(c[4])
-        }));
-        candleSeries.setData(candles);
-        const lastClose = candles[candles.length - 1].close;
-        document.getElementById("price-tag").innerText = "$" + lastClose;
-        document.getElementById("status").style.display = "none";
-        chart.timeScale().fitContent();
-      })
-      .catch(err => {
-        document.getElementById("status").innerText = "Error loading chart.";
-      });
+    if (!["SILVER", "HG1", "USOIL"].includes(baseKey)) {
+      const to = Math.floor(Date.now() / 1000);
+      const from = to - (120 * 15 * 60);
+
+      fetch(`https://nobitex.ir{symbol}&resolution=15&from=${from}&to=${to}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.s !== "ok" || !data.t || !data.t.length) throw new Error("No data");
+          const candles = data.t.map((ts, i) => ({
+            time: Number(ts) + 12600,
+            open: parseFloat(data.o[i]),
+            high: parseFloat(data.h[i]),
+            low: parseFloat(data.l[i]),
+            close: parseFloat(data.c[i])
+          }));
+          candleSeries.setData(candles);
+          const lastClose = candles[candles.length - 1].close;
+          document.getElementById("price-tag").innerText = (baseKey === "USDT" ? "" : "$") + lastClose.toLocaleString();
+          document.getElementById("status").style.display = "none";
+          chart.timeScale().fitContent();
+        })
+        .catch(() => {
+          document.getElementById("status").innerText = "Data unavailable for " + baseKey;
+        });
+    }
 
     window.addEventListener("resize", () => {
       chart.applyOptions({ width: window.innerWidth, height: window.innerHeight - 42 });
